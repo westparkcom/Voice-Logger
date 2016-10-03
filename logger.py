@@ -78,7 +78,7 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
     def __init__(self, server_address, RequestHandlerClass):
         SocketServer.TCPServer.__init__(self, server_address, RequestHandlerClass)
-    self._shutdown_request = False
+        self._shutdown_request = False
 
 try:
     # If we're already listening on port, kill the process
