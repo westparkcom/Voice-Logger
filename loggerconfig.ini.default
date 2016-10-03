@@ -1,0 +1,32 @@
+[IMDB]
+IMDBUSER = imdb
+IMDBPASS = password
+IMDBHOST = localhost
+IMDBPORT = 3306
+IMDBDB = logger
+IMDBTABLE = voicelogger
+CURRCALLTABLE = current_calls
+
+[LoggerDB]
+LOGGERDBUSER = logger
+LOGGERDBPASS = logger
+LOGGERDBHOST = localhost
+LOGGERDBPORT = 3306
+LOGGERDBDB = voicelogger
+LOGGERDBTABLE = current_calls
+
+[Network]
+# TCP Port to listen on
+TCPPORT = 8091
+# TCP connection timeout (in seconds)
+TCPTIMEOUT = 120
+
+[FreeSWITCH]
+FSHOST = localhost
+FSPORT = 8021
+FSPASSWORD = ClueCon
+FSSIPPROFILE = PTD
+FSGATEWAY = eQueue
+
+[Logging]
+LOGLEVEL = debug
