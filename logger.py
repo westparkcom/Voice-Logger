@@ -1,16 +1,17 @@
-import MySQLdb
+# import MySQLdb
 import SocketServer
 import threading
 from datetime import date, datetime
 import time
 import sys
-import signal
-import subprocess
 import socket
 import os
 import ConfigParser
 import logging
 import logging.config
+import random
+import ESL
+import json
 
 # Global config
 config = ConfigParser.ConfigParser()
@@ -19,7 +20,6 @@ config.read('loggerconfig.ini')
 # Logging setup
 logging.config.fileConfig('loggerlog.ini')
 logwrite = logging.getLogger('loggerLog')
-
 
 class listenerService(SocketServer.BaseRequestHandler):
 
@@ -30,67 +30,342 @@ class listenerService(SocketServer.BaseRequestHandler):
     """
 
     def handle(self):
+        """
+        Listens for requests from PInnacle client and sends them to other
+        functions for processing, then sends return value to client
+        as a response
+        
+        Args:
+            self: This class
+        """
         try:
             data = 'dummy'
-            try:
-                logwrite.debug("%s: Connecting to database: HOST: %s | USER: %s | PASS: <removed> | DATABASE: %s" %
-                               (str(threading.currentThread()), config.get('IMDB', 'IMDBHOST'), config.get('IMDB', 'IMDBUSER'), config.get('IMDB', 'IMDBDB')))
-                db = MySQLdb.connect(config.get('IMDB', 'IMDBHOST'), config.get(
-                    'IMDB', 'IMDBUSER'), config.get('IMDB', 'IMDBPASS'), config.get('IMDB', 'IMDBDB'))
-                logwrite.info("%s: Database connection successful." %
-                              (str(threading.currentThread())))
-                c = db.cursor()
-                sql = "INSERT INTO %s(thread_id,ip_address,port,timestamp) VALUES('%s','%s',%d,'%s')" % (
-                    config.get('IMDB', 'IMDBTABLE'), str(threading.currentThread()), str(self.client_address[0]), self.client_address[1], str(datetime.now()))
-                logwrite.debug("%s: Executing SQL: %s" %
-                               (str(threading.currentThread()), sql))
-                c.execute(sql)
-                logwrite.debug("%s: SQL executed successfully." %
-                               (str(threading.currentThread())))
-                db.commit()
-            except Exception as e:
-                logwrite.error("%s: Soemthing went wrong while attempting SQL INSERT: %s" %
-                               (str(threading.currentThread()), e))
-                logwrite.error("%s: Cannot continue, terminating program..." %
-                               (str(threading.currentThread())))
-                pid = os.getpid()
-                os.kill(pid, signal.SIGINT)
-                return
             logwrite.info("%s: Client connected from address %s:%s" %
-                          (str(threading.currentThread()), self.client_address[0], str(self.client_address[1])))
-            while len(data):
-                self.request.settimeout(
-                    int(config.get('Network', 'TCPTIMEOUT')))
-                data = self.request.recv(4096)
-                logwrite.debug("%s: Received data: %s" %
-                               (str(threading.currentThread()), data))
-                # This is where we'll call the objects that will handle what
-                # we've received. For now we just echo back...
-                self.request.send(data)
+                          (str(threading.current_thread().ident), self.client_address[0], str(self.client_address[1])))
+            self.request.settimeout(
+                int(config.get('Network', 'TCPTIMEOUT')))
+            data = self.request.recv(4096)
+            logwrite.debug("%s: Received data: %s" %
+                           (str(threading.current_thread().ident), data))
+            cleandata = data.strip()
+            # Send what we received off to be processed
+            response = self.RequestHandler(cleandata)
+            self.request.send(response)
             logwrite.info("%s: Client %s:%s disconnected" %
-                          (str(threading.currentThread()), self.client_address[0], str(self.client_address[1])))
-            sql = "DELETE FROM %s WHERE thread_id='%s'" % (
-                config.get('IMDB', 'IMDBTABLE'), str(threading.currentThread()))
-            logwrite.debug("%s: Clearing thread from database: %s" %
-                           (str(threading.currentThread()), sql))
-            c.execute(sql)
-            db.commit()
-            db.close
+                          (str(threading.current_thread().ident), self.client_address[0], str(self.client_address[1])))
             self.request.close()
             return
-        except(socket.timeout):
-            logwrite.info("%s: Client %s:%s timed out" %
-                          (str(threading.currentThread()), self.client_address[0], str(self.client_address[1])))
-            sql = "DELETE FROM %s WHERE thread_id='%s'" % (
-                config.get('IMDB', 'IMDBTABLE'), str(threading.currentThread()))
-            logwrite.debug("%s: Clearing thread from database: %s" %
-                           (str(threading.currentThread()), sql))
-            c.execute(sql)
-            db.commit()
-            db.close
+        except(socket.timeout, socket.error, threading.ThreadError, Exception) as e:
+            logwrite.info("%s: Error: %s" %
+                          (str(threading.current_thread().ident), e))
             self.request.close()
             return
-
+            
+    def RequestHandler(self, RequestData):
+        """ Handles request from PInnacle and determines how to process them
+        
+        Takes the data we received in the handle function and determines
+        what we should do with it. There are currently 5 menthods we are
+        aware of that PInnacle client sends:
+            START(agentID,fldClientID=XXXX,fldDNIS=XXXXXXXXXX,fldANI=XXXXXXXXXX,fldCallType=X,fldCSN=XXXXXXX,fldAgentLoginID=XXX)
+            STOP(agentID)
+            PAUSE(agentID)
+            RESUME(agentID)
+            HELLO ()
+            
+        Args:
+            self: This class
+            RequestData: the request sent by PInnacle client
+        """
+        if RequestData[0:5] == "START":
+            callParams = self.Parse(RequestData[5:])
+            originateResult = self.OriginateRecording(callParams)
+            if originateResult[0] == False:
+                return "ERROR(NOT RECORDING)\r\n"
+            elif originateResult[0] == True:
+                return "OK(" + originateResult[1] + ")\r\n"
+        elif RequestData[0:4] == "STOP":
+            callParams = self.Parse(RequestData[4:])
+            recstop = self.StopRecording(callParams['agentID'])
+            if recstop[0] == True:
+                return "OK\r\n"
+            else:
+                return "ERROR(" + recstop[1] + ")\r\n"
+        elif RequestData[0:5] == "PAUSE":
+            callParams = self.Parse(RequestData[5:])
+            recpaused = self.PauseResumeRecording(callParams['agentID'], "mask")
+            if recpaused[0] == True:
+                return "OK\r\n"
+            else:
+                return "ERROR(" + recpaused[1] + ")\r\n"
+        elif RequestData[0:6] == "RESUME":
+            callParams = self.Parse(RequestData[6:])
+            recresume = self.PauseResumeRecording(callParams['agentID'], "unmask")
+            if recresume[0] == True:
+                return "OK\r\n"
+            else:
+                return "ERROR(" + recresume[1] + ")\r\n"
+        elif RequestData[0:5] == "HELLO":
+            now = datetime.now()
+            helloStr = "OK " + str(now.strftime("%m/%d/%Y %I:%M:%S %p")) + " Calls: " + str(random.randint(0, 999999)) + "\r\n"
+            return helloStr
+        else:
+            logwrite.warning("%s: Invalid command received: %s" % (str(threading.current_thread().ident), RequestData))
+            return "ERROR(NOT VALID COMMAND)\r\n"
+            
+    def Parse(self, CallParameters):
+        """ Parses the START() command parameters and returns a dictionary
+        
+        Splits out all the parameters received from PInnacle. All but the first
+        parameter are in K=V format separated by commas. Returns a dictionary
+        with all the K,V pairs
+        
+        Args:
+            self: This class
+            CallParameters: Raw string of the parameters (parenthesis included)
+        """
+        
+        # Remove outer parenthesis
+        cleanParameters = CallParameters[1:-1]
+        parametersArr = cleanParameters.split(",")
+        i = 0
+        paramsDict = {}
+        for item in parametersArr:
+            #First parameter we receive isn't in K,V pair, so make a key...
+            if i == 0:
+                paramsDict['agentID'] = item
+            else:
+                name, var = item.partition("=")[::2]
+                paramsDict[name] = var
+            i = i + 1
+        return paramsDict
+    
+    def PauseResumeRecording(self, agentID, action):
+        """ Pauses or resumes the recording in FreeSWITCH
+        
+        Gets a list of active recordings from FreeSWITCH and iterates
+        through them, checking each agent_id variable for each call to see if
+        that call matches. If there's a match, pause/resume the recording
+        and return [True, "OK"]. If no match, return [False, "NOT RECORDING"].
+        If there's an error, return [False, "INTERNAL ERROR"]
+        
+        Args:
+            self: This class
+            agentID: (string) The agentID to check against
+            action: (string) 'mask' (pause) or 'unmask' (resume)
+        """
+        
+        # Connect to FreeSWITCH
+        fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
+        if fscon.connected():
+            calls = fscon.api("show", "channels as json")
+            CurrentCalls = json.loads(calls.getBody())
+            j = 0
+            try:
+                for row in CurrentCalls['rows']:
+                    logwrite.debug("%s: Checking UUID %s for agent ID %s..." % (str(threading.current_thread().ident), str(row['call_uuid']), str(agentID)))
+                    varstring = str(row['call_uuid']) + " agent_id"
+                    fsreturn = fscon.api("uuid_getvar", varstring)
+                    retAgentID = fsreturn.getBody().strip()
+                    if str(retAgentID) == str(agentID):
+                        logwrite.warn("%s: Call for agent ID %s found, %s recording for %s..." % (str(threading.current_thread().ident), str(agentID), str(action), str(row['call_uuid'])))
+                        filestring = str(row['call_uuid']) + " recording_file"
+                        filereturn = fscon.api("uuid_getvar", filestring)
+                        filename = filereturn.getBody().strip()
+                        output = fscon.api("uuid_record", str(row['call_uuid']) + " " + action + " " + str(filename))
+                        logwrite.debug("%s: FreeSWITCH output: %s" % (str(threading.current_thread().ident), str(row['call_uuid']), output.getBody().strip()))
+                        pausestring = str(row['call_uuid']) + " recording_paused 1"
+                        fscon.api("uuid_setvar", pausestring)
+                        j = j + 1
+                        time.sleep(.33)
+            except:
+                fscon.disconnect()
+                return [False, "NOT RECORDING"]
+            fscon.disconnect()
+            if j == 0:
+                return [False, "NOT RECORDING"]
+            else:
+                return [True, "OK"]
+        else:
+            logwrite.error("%s: Unable to connect to FreeSWITCH to %s call, responding with ERROR" % (str(threading.current_thread().ident), str(action)))
+            return [False, "INTERNAL ERROR"]
+    
+    def StopRecording(this, agentID):
+        """ Stops the recording in FreeSWITCH
+        
+        Gets a list of active recordings from FreeSWITCH and iterates
+        through them, checking each agent_id variable for each call to see if
+        that call matches. If there's a match, stop the recording
+        and return [True, "OK"]. If no match, return [False, "NOT RECORDING"].
+        If there's an error, return [False, "INTERNAL ERROR"]
+        
+        Args:
+            self: This class
+            agentID: (string) The agentID to check against
+        """
+        fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
+        if fscon.connected():
+            calls = fscon.api("show", "channels as json")
+            CurrentCalls = json.loads(calls.getBody())
+            j = 0
+            try:
+                for row in CurrentCalls['rows']:
+                    logwrite.debug("%s: Checking UUID %s for agent ID %s..." % (str(threading.current_thread().ident), str(row['call_uuid']), str(agentID)))
+                    varstring = str(row['call_uuid']) + " agent_id"
+                    fsreturn = fscon.api("uuid_getvar", varstring)
+                    retAgentID = fsreturn.getBody().strip()
+                    if str(retAgentID) == str(agentID):
+                        logwrite.warn("%s: Call for agent ID %s found, killing UUID %s..." % (str(threading.current_thread().ident), str(agentID), str(row['call_uuid'])))
+                        fscon.api("uuid_kill", str(row['call_uuid']))
+                        j = j + 1
+                        time.sleep(.33)
+            except:
+                fscon.disconnect()
+                return [False, "NOT RECORDING"]
+            fscon.disconnect()
+            if j == 0:
+                return [False, "NOT RECORDING"]
+            else:
+                return [True, "OK"]
+        else:
+            logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
+            return [False, "INTERNAL ERROR"]
+    
+    def killDuplicateCalls(this, agentID):
+        """ Checks for multiple recordings per agentID in FreeSWITCH
+        
+        Gets a list of active recordings from FreeSWITCH and iterates
+        through them, checking each agent_id variable for each call to see if
+        that call matches. If there's a match, stop the recordings
+        and return True. If no match, return True. If no active recordings,
+        return False. If there's a problem, return "ERROR"
+        
+        Args:
+            self: This class
+            agentID: (string) The agentID to check against
+        """
+        # Connect to FreeSWITCH
+        fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
+        if fscon.connected():
+            # Let's check to see if we're already recording for this agent ID.
+            # If we are, kill the call.
+            calls = fscon.api("show", "channels as json")
+            CurrentCalls = json.loads(calls.getBody())
+            try:
+                for row in CurrentCalls['rows']:
+                    logwrite.debug("%s: Checking UUID %s for agent ID %s..." % (str(threading.current_thread().ident), str(row['call_uuid']), str(agentID)))
+                    varstring = str(row['call_uuid']) + " agent_id"
+                    fsreturn = fscon.api("uuid_getvar", varstring)
+                    retAgentID = fsreturn.getBody().strip()
+                    if str(retAgentID) == str(agentID):
+                        logwrite.warn("%s: Duplicate call for agent ID %s found, killing UUID %s..." % (str(threading.current_thread().ident), str(agentID), str(row['call_uuid'])))
+                        fscon.api("uuid_kill", str(row['call_uuid']))
+                        time.sleep(.33)
+            except:
+                fscon.disconnect()
+                return False
+            fscon.disconnect()
+            return True
+        else:
+            logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
+            return "ERROR"
+            
+    def OriginateRecording(self, CallData):
+        """ Starts recording call
+        
+        Sends command to FreeSWITCH to begin recording call. Checks
+        to see if there is already an active recording for the agentID
+        and stops if exists. 
+        
+        Args:
+            self: This class
+            CallData: (string) The data received from PInnacle that is parsed
+                to start the recording
+        """
+        callsKilled = self.killDuplicateCalls(str(CallData['agentID']))
+        if str(callsKilled) == "ERROR":
+            return [False, False]
+        # Now that we've cleaned up, let's start the recording
+        # Check to see if folder for today exists, if not, create ite
+        now = datetime.now()
+        folder = str(config.get('FreeSWITCH', 'LOGGERDIR')) + "/" + str(now.strftime("%Y-%m-%d"))
+        logwrite.debug("%s: Checking if folder %s exists..." % (str(threading.current_thread().ident), folder))
+        if not os.path.isdir(folder):
+            try:
+                logwrite.debug("%s: Folder %s does not exist, creating..." % (str(threading.current_thread().ident), folder))
+                os.makedirs(folder)
+                logwrite.debug("%s: Folder %s created!" % (str(threading.current_thread().ident), folder))
+            except(Exception) as e:
+                logwrite.error("%s: Unable to create folder %s : %s" % (str(threading.current_thread().ident), folder, e))
+                returnVar = [False, False]
+                return returnVar
+        # Generate a filename
+        recordname = str(now.isoformat()) + '-' + str(CallData['fldCSN']) + '.' + str(config.get('FreeSWITCH', 'FILEEXT'))
+        filename = folder + '/' + recordname
+        logwrite.debug("%s: Filename to record; %s" % (str(threading.current_thread().ident), filename))
+        # Generate our outbound gateways (maybe clean this up at some point?)
+        origGateways = "sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY1')) + "/#*" + str(CallData['agentID'])
+        try:
+            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY2')) + "/#*" + str(CallData['agentID'])
+        except:
+            pass
+        try:
+            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY3')) + "/#*" + str(CallData['agentID'])
+        except:
+            pass
+        try:
+            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY4')) + "/#*" + str(CallData['agentID'])
+        except:
+            pass
+        try:
+            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY5')) + "/#*" + str(CallData['agentID'])
+        except:
+            pass
+        try:
+            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY6')) + "/#*" + str(CallData['agentID'])
+        except:
+            pass
+        try:
+            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY7')) + "/#*" + str(CallData['agentID'])
+        except:
+            pass
+        try:
+            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY8')) + "/#*" + str(CallData['agentID'])
+        except:
+            pass
+        # Originate the call
+        origString = "{agent_id=" + str(CallData['agentID']) + ",agent_login_id=" + str(CallData['fldAgentLoginID']) + ",call_dnis=" + str(CallData['fldDNIS']) + ",call_ani=" + str(CallData['fldANI']) + ",call_type=" + str(CallData['fldCallType']) + ",call_csn=" + str(CallData['fldCSN']) + ",call_acct=" + str(CallData['fldClientID']) + ",recording_file=" + filename + ",recording_paused=0}" + origGateways + " &lua(" + str(config.get('FreeSWITCH', 'FSLUA')) + ")"
+        logwrite.debug("%s: Sending command to freeswitch: %s" % (str(threading.current_thread().ident), origString))
+        # Connect to FreeSWITCH
+        fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
+        if fscon.connected():  
+            orig = fscon.api("originate", origString)
+            OrigResult = orig.getBody().strip()
+            status = OrigResult[:3]
+            if status == "+OK":
+                origUUID =  OrigResult[4:]
+            else:
+                logwrite.error("%s: Unable to originate call in FreeSWITCH, received error: %s. responding with ERROR" % (str(threading.current_thread().ident), OrigResult))
+                returnVar = [False, False]
+                fscon.disconnect()
+                return returnVar
+            # Sleep for a tiny bit, then check if our call is still active. If not, the recording didn't start...
+            # NOTE: This probably needs to increase to allow for trying multiple gateways.
+            time.sleep(.33)
+            fsreturn = fscon.api("uuid_buglist", origUUID)
+            UUIDAlive = fsreturn.getBody().strip()
+            if UUIDAlive[:4] == "-ERR":
+                logwrite.error("%s: Call originated, but unable to start recording in FreeSWITCH, received the following error: %s. Responding with ERROR" % (str(threading.current_thread().ident), UUIDAlive))
+                returnVar = [False, False]
+                fscon.disconnect()
+                return returnVar
+        else:
+            logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
+            returnVar = [False, False]
+            return returnVar
+        returnVar = [True, recordname]
+        return returnVar
+            
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     daemon_threads = True
@@ -100,6 +375,7 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         SocketServer.TCPServer.__init__(
             self, server_address, RequestHandlerClass)
         self._shutdown_request = False
+
 
 try:
     # If we're already listening on port, kill the process
@@ -116,24 +392,6 @@ try:
     else:
         logwrite.info("Port %s is available!" %
                       (str(config.get('Network', 'TCPPORT'))))
-    # Try to connect to MySQL DB, exit if you can't
-    try:
-        logwrite.debug("Connecting to database: HOST: %s | USER: %s | PASS: <removed> | DATABASE: %s" %
-                       (config.get('IMDB', 'IMDBHOST'), config.get('IMDB', 'IMDBUSER'), config.get('IMDB', 'IMDBDB')))
-        db = MySQLdb.connect(config.get('IMDB', 'IMDBHOST'), config.get(
-            'IMDB', 'IMDBUSER'), config.get('IMDB', 'IMDBPASS'), config.get('IMDB', 'IMDBDB'))
-        logwrite.debug("Database connection successful.")
-        c = db.cursor()
-        logwrite.info("Resetting IMDB...")
-        sql = "TRUNCATE %s" % (config.get('IMDB', 'IMDBTABLE'))
-        c.execute(sql)
-        db.commit()
-        db.close()
-    except Exception as e:
-        logwrite.error(
-            "Soemthing went wrong while attempting SQL TRUNCATE: %s" % (e))
-        logwrite.error("Cannot continue, terminating program...")
-        sys.exit(1)
     # Set up threaded TCP server to serve forever, then start the thread
     logwrite.info("Starting listener service on port %s" %
                   (str(config.get('Network', 'TCPPORT'))))
@@ -152,25 +410,7 @@ except(KeyboardInterrupt, SystemExit):
     except:
         logwrite.error("No listener running, skipping thread shutdown.")
     if result != 0:
-        try:
-            logwrite.debug("Connecting to database: HOST: %s | USER: %s | PASS: <removed> | DATABASE: %s" %
-                           (config.get('IMDB', 'IMDBHOST'), config.get('IMDB', 'IMDBUSER'), config.get('IMDB', 'IMDBDB')))
-            db = MySQLdb.connect(config.get('IMDB', 'IMDBHOST'), config.get(
-                'IMDB', 'IMDBUSER'), config.get('IMDB', 'IMDBPASS'), config.get('IMDB', 'IMDBDB'))
-            logwrite.debug("Database connection successful.")
-            c = db.cursor()
-            logwrite.info("Clearing IMDB...")
-            sql = "TRUNCATE %s" % (config.get('IMDB', 'IMDBTABLE'))
-            c.execute(sql)
-            db.commit()
-            db.close()
-            logwrite.warning("Terminating program...")
-            sys.exit()
-        except Exception as e:
-            logwrite.error(
-                "Soemthing went wrong while attempting SQL TRUNCATE: %s" % (e))
-            logwrite.error("Terminating program...")
-            sys.exit()
+        sys.exit()
     else:
         logwrite.warning("Terminating program...")
         sys.exit()

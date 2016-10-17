@@ -1,20 +1,3 @@
-[IMDB]
-IMDBUSER = imdb
-IMDBPASS = password
-IMDBHOST = localhost
-IMDBPORT = 3306
-IMDBDB = logger
-IMDBTABLE = voicelogger
-CURRCALLTABLE = current_calls
-
-[LoggerDB]
-LOGGERDBUSER = logger
-LOGGERDBPASS = logger
-LOGGERDBHOST = localhost
-LOGGERDBPORT = 3306
-LOGGERDBDB = voicelogger
-LOGGERDBTABLE = current_calls
-
 [Network]
 # TCP Port to listen on
 TCPPORT = 8091
@@ -22,11 +5,34 @@ TCPPORT = 8091
 TCPTIMEOUT = 120
 
 [FreeSWITCH]
+# Where to store the recordings
+LOGGERDIR = /usr/share/freeswitch/sounds/logger
+# What file extension to use for the recordings
+FILEEXT = mp3
+# Server FreeSWITCH is running on
 FSHOST = localhost
+# Port FreeSWITCH is running on
 FSPORT = 8021
+# Password to connect to FreeSWITCH
 FSPASSWORD = ClueCon
-FSSIPPROFILE = PTD
-FSGATEWAY = eQueue
+# Name of first gateway to try
+FSGATEWAY1 = equeue
+# Name of second gateway to try
+#FSGATEWAY2 = Adtran-1
+# Name of third gateway to try
+#FSGATEWAY3 = Adtran-3
+# Name of fourth gateway to try
+#FSGATEWAY4 = Adtran-3
+# Name of fifth gateway to try
+#FSGATEWAY5 = Adtran-4
+# Name of sixth gateway to try
+#FSGATEWAY6 = Adtran-5
+# Name of seventh gateway to try
+#FSGATEWAY7 = Adtran-6
+# Name of eighth gateway to try
+#FSGATEWAY8 = Adtran-7
+# Location of lua script for FreeSWITCH to reference
+FSLUA = /etc/freeswitch/scripts/logger.lua
 
 [Logging]
 LOGLEVEL = debug
