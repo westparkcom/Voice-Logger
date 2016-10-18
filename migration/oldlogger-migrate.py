@@ -37,7 +37,7 @@
 #################################################################
 
 # Microsoft SQL server on old logger server
-dbserver = "174.46.10.130"
+dbserver = "10.10.10.10"
 # Microsoft SQL server username
 dbusername = "cmdata"
 # Microsoft SQL server password
