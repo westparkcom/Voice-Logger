@@ -4,7 +4,7 @@ The WPC-Logger project is a call recording system intended for use with Professi
 
 ## Installation
 
-See INSTALL.md for installation instructions
+See [INSTALL](INSTALL.md) for installation instructions
 
 ## Usage
 
@@ -26,4 +26,4 @@ TODO: Write usage instructions
 
 ## License
 
-See LICENSE.md
+See [LICENSE](LICENSE.md) for license information
