@@ -41,7 +41,7 @@ dbserver = "10.10.10.10"
 # Microsoft SQL server username
 dbusername = "cmdata"
 # Microsoft SQL server password
-dbpassword = "1234"
+dbpassword = "password"
 # Microsoft SQL server database to use
 dbdatabase = "Subscriber"
 
@@ -57,9 +57,9 @@ stripstring = "logger\\"
 # Email notification when complete?
 mailnotify = True
 # Who will the email appear to come from
-notifyfrom = "WPC Tech <tech@westparkcom.com>"
+notifyfrom = "Tech <tech@yourdomain.com>"
 # Who to send the email to
-notifyto = ["Josh Patten <jpatten@westparkcom.net>"]
+notifyto = ["Tech <tech@yourdomain.com>"]
 # What SMTP server to use
 smtpserver = "10.10.10.10"
 
