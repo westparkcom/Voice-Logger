@@ -45,6 +45,7 @@ stripstring | This is the escaped substring of the 'AudioFilePath' field to sear
 sourceloc | Location on the filesystem where you have mounted the SMB share where the recordings are stored. Be sure this folder leads to the location where all of the date folders reside (2016-10-01, 2016-10-02, etc.)
 
 The following optional variables can be set if desired:
+
 Variable | Description
 --- | ---
 destloc | If your recordings are in a location other than the default location, set this
