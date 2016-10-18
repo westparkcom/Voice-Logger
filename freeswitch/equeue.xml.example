@@ -1,0 +1,13 @@
+<include>
+  <!--/// This is the gateway name you'll define in your logger config ///-->
+  <gateway name="equeue">
+  <!--/// account username *required* ///-->
+  <param name="username" value="999"/>
+  <!--/// auth realm: *optional* same as gateway name, if blank ///-->
+  <param name="realm" value="10.10.10.10"/>
+  <!--/// account password *required* ///-->
+  <param name="password" value="999"/>
+  <!--/// register ///-->
+  <param name="register" value="true"/>
+  </gateway>
+</include>

@@ -1,0 +1,63 @@
+#!/usr/bin/php
+<?php
+
+$shortopts = "";
+$shortopts .= "c:";
+$longopts = array("config:");
+
+$options = getopt($shortopts, $longopts);
+
+if (array_key_exists('c', $options)) {
+	$configfile = $options["c"];
+} elseif (array_key_exists('config', $options)) {
+	$configfile = $options["config"];
+} else {
+	echo "Usage: cdr2mysql --config \"/usr/local/etc/loggerconfig.ini\"" . PHP_EOL;
+	die(1);
+}
+
+$iniarray = parse_ini_file($configfile, true);
+
+$servername = $iniarray["CDR-Database"]["LOGGERDBSERVER"];
+
+$username = $iniarray["CDR-Database"]["LOGGERDBUSER"];
+
+$password = $iniarray["CDR-Database"]["LOGGERDBPASS"];
+
+$database = $iniarray["CDR-Database"]["LOGGERDB"];
+
+$dir = $iniarray["FreeSWITCH"]["CDRFILELOC"];
+
+sleep(5);
+
+$files = glob($dir . '/Master.csv.*');
+
+$cdr_contents = array();
+
+while(list($i, $filename) = each($files)) {
+        $contents = file($filename);
+        echo "File " . $filename . " processed..." . PHP_EOL;
+        foreach($contents as $line) {
+                $cdr_contents[] = $line;
+        }
+}
+
+$conn = mysqli_connect($servername, $username, $password, $database);
+
+if (!$conn) {
+        echo "Error: Unable to connect to MySQL." . PHP_EOL;
+        echo "Debugging errno: " . mysqli_connect_errno() . PHP_EOL;
+        echo "Debugging error: " . mysqli_connect_error() . PHP_EOL;
+        die(1);
+} else {
+        echo "Connected, inserting CDR records...";
+        foreach($cdr_contents as $entry) {
+                if(!$conn->query("INSERT INTO " . $iniarray["CDR-Database"]["LOGGERDBTABLE"] . " " . $entry)) {
+                        echo 'There was an error running the query [' . $conn->error . ']' . PHP_EOL;
+			die(1);
+                }
+        }
+}
+mysqli_close($conn);
+
+?>

@@ -1,0 +1,21 @@
+#!/usr/bin/php
+<?php
+
+$shortopts = "";
+$shortopts .= "c:";
+$longopts = array("config:");
+
+$options = getopt($shortopts, $longopts);
+
+if (array_key_exists('c', $options)) {
+        $configfile = $options["c"];
+} elseif (array_key_exists('config', $options)) {
+        $configfile = $options["config"];
+} else {
+        echo "Usage: cdr2mysql --config \"/usr/local/etc/loggerconfig.ini\"";
+        die(1);
+}
+
+$iniarray = parse_ini_file($configfile, true);
+print_r($iniarray);
+?>

@@ -1,4 +1,10 @@
-# import MySQLdb
+#################################################################
+#                                                               #
+# Copyright (c) 2016 Westpark Communications, L.P.              #
+# Subject to the GNU Affero GPL license                         #
+# See the file LICENSE.md for details                           #
+#                                                               #
+#################################################################
 import SocketServer
 import threading
 from datetime import date, datetime
@@ -12,13 +18,44 @@ import logging.config
 import random
 import ESL
 import json
+import pwd
+import grp
 
+# Get config and logging info from CLI args
+i = 0
+argsDict = {}
+for item in sys.argv:
+    if i == 0:
+        i = i + 1
+        pass
+    else:
+        i = i + 1
+        paramname, paramval = item.partition("=")[::2]
+        argsDict[paramname] = paramval
+
+try:
+    loggerLogConfigFile = argsDict['--logconfig']
+except:
+    print ""
+    print "Error: log configuration file location not specified."
+    print ""
+    print "Usage: python", sys.argv[0], "--config=/path/to/configfile/loggerconfig.ini --logconfig=/path/to/logconfigfile/loggerlog.ini"
+    sys.exit(1)
+try:
+    loggerConfigFile = argsDict['--config']
+except:
+    print ""
+    print "Error: log configuration file location not specified."
+    print ""
+    print "Usage: python", sys.argv[0], "--config=/path/to/configfile/loggerconfig.ini --logconfig=/path/to/logconfigfile/loggerlog.ini"
+    sys.exit(1)
+        
 # Global config
 config = ConfigParser.ConfigParser()
-config.read('loggerconfig.ini')
+config.read(loggerConfigFile)
 
 # Logging setup
-logging.config.fileConfig('loggerlog.ini')
+logging.config.fileConfig(loggerLogConfigFile)
 logwrite = logging.getLogger('loggerLog')
 
 class listenerService(SocketServer.BaseRequestHandler):
@@ -81,37 +118,56 @@ class listenerService(SocketServer.BaseRequestHandler):
             callParams = self.Parse(RequestData[5:])
             originateResult = self.OriginateRecording(callParams)
             if originateResult[0] == False:
-                return "ERROR(NOT RECORDING)\r\n"
+                respresult = "ERROR(NOT RECORDING)\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
             elif originateResult[0] == True:
-                return "OK(" + originateResult[1] + ")\r\n"
+                respresult = originateResult[1] + "\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
         elif RequestData[0:4] == "STOP":
             callParams = self.Parse(RequestData[4:])
             recstop = self.StopRecording(callParams['agentID'])
             if recstop[0] == True:
-                return "OK\r\n"
+                respresult = "OK\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
             else:
-                return "ERROR(" + recstop[1] + ")\r\n"
+                respresult = "ERROR(" + recstop[1] + ")\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
         elif RequestData[0:5] == "PAUSE":
             callParams = self.Parse(RequestData[5:])
             recpaused = self.PauseResumeRecording(callParams['agentID'], "mask")
             if recpaused[0] == True:
-                return "OK\r\n"
+                respresult = "OK\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
             else:
-                return "ERROR(" + recpaused[1] + ")\r\n"
+                respresult = "ERROR(" + recpaused[1] + ")\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
         elif RequestData[0:6] == "RESUME":
             callParams = self.Parse(RequestData[6:])
             recresume = self.PauseResumeRecording(callParams['agentID'], "unmask")
             if recresume[0] == True:
-                return "OK\r\n"
+                respresult = "OK\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
             else:
-                return "ERROR(" + recresume[1] + ")\r\n"
+                respresult = "ERROR(" + recresume[1] + ")\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
         elif RequestData[0:5] == "HELLO":
             now = datetime.now()
             helloStr = "OK " + str(now.strftime("%m/%d/%Y %I:%M:%S %p")) + " Calls: " + str(random.randint(0, 999999)) + "\r\n"
+            logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), helloStr))
             return helloStr
         else:
             logwrite.warning("%s: Invalid command received: %s" % (str(threading.current_thread().ident), RequestData))
-            return "ERROR(NOT VALID COMMAND)\r\n"
+            respresult = "ERROR(NOT VALID COMMAND)\r\n"
+            logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+            return respresult
             
     def Parse(self, CallParameters):
         """ Parses the START() command parameters and returns a dictionary
@@ -173,12 +229,13 @@ class listenerService(SocketServer.BaseRequestHandler):
                         filereturn = fscon.api("uuid_getvar", filestring)
                         filename = filereturn.getBody().strip()
                         output = fscon.api("uuid_record", str(row['call_uuid']) + " " + action + " " + str(filename))
-                        logwrite.debug("%s: FreeSWITCH output: %s" % (str(threading.current_thread().ident), str(row['call_uuid']), output.getBody().strip()))
+                        logwrite.debug("%s: FreeSWITCH output: %s" % (str(threading.current_thread().ident), output.getBody().strip()))
                         pausestring = str(row['call_uuid']) + " recording_paused 1"
                         fscon.api("uuid_setvar", pausestring)
                         j = j + 1
                         time.sleep(.33)
-            except:
+            except (Exception) as e:
+                logwrite.debug("%s: Exception encountered:, %s..." % (str(threading.current_thread().ident), e))
                 fscon.disconnect()
                 return [False, "NOT RECORDING"]
             fscon.disconnect()
@@ -219,7 +276,8 @@ class listenerService(SocketServer.BaseRequestHandler):
                         fscon.api("uuid_kill", str(row['call_uuid']))
                         j = j + 1
                         time.sleep(.33)
-            except:
+            except (Exception) as e:
+                logwrite.debug("%s: Exception encountered:, %s..." % (str(threading.current_thread().ident), e))
                 fscon.disconnect()
                 return [False, "NOT RECORDING"]
             fscon.disconnect()
@@ -231,7 +289,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
             return [False, "INTERNAL ERROR"]
     
-    def killDuplicateCalls(this, agentID):
+    def checkDuplicateCalls(this, agentID):
         """ Checks for multiple recordings per agentID in FreeSWITCH
         
         Gets a list of active recordings from FreeSWITCH and iterates
@@ -258,10 +316,57 @@ class listenerService(SocketServer.BaseRequestHandler):
                     fsreturn = fscon.api("uuid_getvar", varstring)
                     retAgentID = fsreturn.getBody().strip()
                     if str(retAgentID) == str(agentID):
+                        logwrite.warn("%s: Duplicate call for agent ID %s found: %s..." % (str(threading.current_thread().ident), str(agentID), str(row['call_uuid'])))
+                        filevarstring = str(row['call_uuid']) + " recording_file"
+                        fsreturn = fscon.api("uuid_getvar", filevarstring)
+                        retFile = fsreturn.getBody().strip()
+                        filenamestr = retFile.rsplit('/')[-1]
+                        fscon.disconnect()
+                        return [True, filenamestr]
+            except (Exception) as e:
+                logwrite.debug("%s: Exception encountered:, %s..." % (str(threading.current_thread().ident), e))
+                fscon.disconnect()
+                return [False, False]
+        else:
+            logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
+            return [False, False]
+            
+    def killDuplicateCalls(this, agentID):
+        """ Checks for multiple recordings per agentID in FreeSWITCH
+        
+        Gets a list of active recordings from FreeSWITCH and iterates
+        through them, checking each agent_id variable for each call to see if
+        that call matches. If there's a match, return [True, recfilename].
+        If no match, return True. If no active recordings,
+        return False. If there's a problem, return "ERROR"
+        
+        Args:
+            self: This class
+            agentID: (string) The agentID to check against
+        """
+        # Connect to FreeSWITCH
+        fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
+        if fscon.connected():
+            # Let's check to see if we're already recording for this agent ID.
+            # If we are, kill the call.
+            calls = fscon.api("show", "channels as json")
+            CurrentCalls = json.loads(calls.getBody())
+            try:
+                for row in CurrentCalls['rows']:
+                    logwrite.debug("%s: Checking UUID %s for agent ID %s..." % (str(threading.current_thread().ident), str(row['call_uuid']), str(agentID)))
+                    varstring = str(row['call_uuid']) + " agent_id"
+                    fsreturn = fscon.api("uuid_getvar", varstring)
+                    retAgentID = fsreturn.getBody().strip()
+                    if str(retAgentID) == str(agentID):
                         logwrite.warn("%s: Duplicate call for agent ID %s found, killing UUID %s..." % (str(threading.current_thread().ident), str(agentID), str(row['call_uuid'])))
                         fscon.api("uuid_kill", str(row['call_uuid']))
                         time.sleep(.33)
-            except:
+            except (Exception) as e:
+                if str(e) == 'rows':
+                    logwrite.debug("%s: No calls found..." % (str(threading.current_thread().ident)))
+                    fscon.disconnect()
+                    return False
+                logwrite.debug("%s: Exception encountered:, %s..." % (str(threading.current_thread().ident), e))
                 fscon.disconnect()
                 return False
             fscon.disconnect()
@@ -269,7 +374,7 @@ class listenerService(SocketServer.BaseRequestHandler):
         else:
             logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
             return "ERROR"
-            
+    
     def OriginateRecording(self, CallData):
         """ Starts recording call
         
@@ -282,6 +387,16 @@ class listenerService(SocketServer.BaseRequestHandler):
             CallData: (string) The data received from PInnacle that is parsed
                 to start the recording
         """
+        
+        if not 'fldCSN' in CallData:
+            logwrite.debug("%s: Phantom resume request received, attempting to match to current call..." % (str(threading.current_thread().ident)))
+            callCheck = self.checkDuplicateCalls(str(CallData['agentID']))
+            if callCheck[0] == True:
+                logwrite.debug("%s: Current call matched! resuming recording..." % (str(threading.current_thread().ident)))
+                return [True, "OK(" + callCheck[1] + ")\r\n"]
+            else:
+                logwrite.debug("%s: Couldn't find current call, not enough data to make new recording, returning error..." % (str(threading.current_thread().ident)))
+                return [False, False]
         callsKilled = self.killDuplicateCalls(str(CallData['agentID']))
         if str(callsKilled) == "ERROR":
             return [False, False]
@@ -294,13 +409,21 @@ class listenerService(SocketServer.BaseRequestHandler):
             try:
                 logwrite.debug("%s: Folder %s does not exist, creating..." % (str(threading.current_thread().ident), folder))
                 os.makedirs(folder)
+                # Change ownership to FreeSWITCH user so FreeSWITCH can write
+                uid = pwd.getpwnam(str(config.get('FreeSWITCH', 'FSUID'))).pw_uid
+                gid = grp.getgrnam(str(config.get('FreeSWITCH', 'FSGID'))).gr_gid
+                os.chown(folder, uid, gid)
                 logwrite.debug("%s: Folder %s created!" % (str(threading.current_thread().ident), folder))
             except(Exception) as e:
                 logwrite.error("%s: Unable to create folder %s : %s" % (str(threading.current_thread().ident), folder, e))
                 returnVar = [False, False]
                 return returnVar
+        else:
+            uid = pwd.getpwnam(str(config.get('FreeSWITCH', 'FSUID'))).pw_uid
+            gid = grp.getgrnam(str(config.get('FreeSWITCH', 'FSGID'))).gr_gid
+            os.chown(folder, uid, gid)
         # Generate a filename
-        recordname = str(now.isoformat()) + '-' + str(CallData['fldCSN']) + '.' + str(config.get('FreeSWITCH', 'FILEEXT'))
+        recordname = str(now.strftime("%Y-%m-%d_%H%M%S_%f")) + '-' + str(CallData['fldCSN']) + '.' + str(config.get('FreeSWITCH', 'FILEEXT'))
         filename = folder + '/' + recordname
         logwrite.debug("%s: Filename to record; %s" % (str(threading.current_thread().ident), filename))
         # Generate our outbound gateways (maybe clean this up at some point?)
@@ -335,7 +458,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             pass
         # Originate the call
         origString = "{agent_id=" + str(CallData['agentID']) + ",agent_login_id=" + str(CallData['fldAgentLoginID']) + ",call_dnis=" + str(CallData['fldDNIS']) + ",call_ani=" + str(CallData['fldANI']) + ",call_type=" + str(CallData['fldCallType']) + ",call_csn=" + str(CallData['fldCSN']) + ",call_acct=" + str(CallData['fldClientID']) + ",recording_file=" + filename + ",recording_paused=0}" + origGateways + " &lua(" + str(config.get('FreeSWITCH', 'FSLUA')) + ")"
-        logwrite.debug("%s: Sending command to freeswitch: %s" % (str(threading.current_thread().ident), origString))
+        logwrite.debug("%s: Sending command to freeswitch: originate %s" % (str(threading.current_thread().ident), origString))
         # Connect to FreeSWITCH
         fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
         if fscon.connected():  
@@ -363,7 +486,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
             returnVar = [False, False]
             return returnVar
-        returnVar = [True, recordname]
+        returnVar = [True, "OK(" + recordname + ")"]
         return returnVar
             
 

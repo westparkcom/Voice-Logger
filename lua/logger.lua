@@ -1,3 +1,10 @@
+------------------------------------------------------------------
+--                                                              --
+-- Copyright (c) 2016 Westpark Communications, L.P.             --
+-- Subject to the GNU Affero GPL license                        --
+-- See the file LICENSE.md for details                          --
+--                                                              --
+------------------------------------------------------------------
 current_uuid = session:getVariable("uuid")
 agent_id = session:getVariable("agent_id")
 agent_login_id = session:getVariable("agent_login_id")
@@ -11,10 +18,10 @@ recording_file = session:getVariable("recording_file")
 session:answer()
 session:setVariable("RECORD_TITLE", "CSN: " .. call_csn .. " | ACCT: " .. call_acct .. " | AGENTID: " .. agent_id)
 session:setVariable("RECORD_ARTIST", agent_login_id)
-session:setVariable("RECORD_DATE", "${strftime(%Y-%m-%d %H:%M)}")
+session:setVariable("RECORD_DATE", os.date("%x %X"))
 session:setVariable("RECORD_COMMENT", "DNIS: " .. call_dnis .. " | ANI: " .. call_ani .. " | TYPE: " .. call_type)
 session:setVariable("RECORD_STEREO", "false")
 session:setVariable("RECORD_HANGUP_ON_ERROR", "true")
 session:setVariable("record_waste_resources", "true")
 session:execute("record_session", recording_file)
-session:execute("playback", "silence_stream://-1")
+session:execute("playback", "silence_stream://-1,1400")

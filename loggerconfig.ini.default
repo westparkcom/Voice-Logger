@@ -33,6 +33,19 @@ FSGATEWAY1 = equeue
 #FSGATEWAY8 = Adtran-7
 # Location of lua script for FreeSWITCH to reference
 FSLUA = /etc/freeswitch/scripts/logger.lua
+# FreeSWITCH UID
+FSUID = freeswitch
+# FreeSWITCH GID
+FSGID = freeswitch
+# CDR Files Location
+CDRFILELOC = /var/log/freeswitch/cdr-csv
 
 [Logging]
 LOGLEVEL = debug
+
+[CDR-Database]
+LOGGERDBSERVER = localhost
+LOGGERDB = logger
+LOGGERDBTABLE = CallLoggerStats
+LOGGERDBUSER = logger
+LOGGERDBPASS = "password"

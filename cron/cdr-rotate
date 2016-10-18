@@ -1,0 +1,18 @@
+#!/bin/bash
+
+fs_cli -x 'cdr_csv rotate'
+
+sleep 3
+
+chown root:root /var/log/freeswitch/cdr-csv/Master.csv.*
+chmod 0777 /var/log/freeswitch/cdr-csv/Master.csv.*
+
+php /usr/local/bin/cdr2mysql --config "/usr/local/etc/loggerconfig.ini"
+success=$?
+if [ $success -ne 0 ]
+then
+        echo "Something went wrong, not deleting files..."
+        exit 1
+else
+        rm -f /var/log/freeswitch/cdr-csv/Master.csv.*
+fi
