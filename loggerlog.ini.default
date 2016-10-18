@@ -29,7 +29,7 @@ interval=midnight
 backupCount=5
 formatter=simpleFormatter
 level=DEBUG
-args=('log/logger.log',)
+args=('/var/log/logger/logger.log',)
 
 [formatter_simpleFormatter]
 format=%(asctime)s:%(levelname)s: %(message)s

@@ -54,7 +54,7 @@ We now need to copy all of the logger components in place
 
 `cp loggerconfig.ini.default /usr/local/etc/loggerconfig.ini`
 
-`cp systemd/logger.service /etc/systemd/system/multi-user.target.wants`
+`cp systemd/logger.service /etc/systemd/system`
 
 `cp cron/cdr-rotate /usr/local/bin`
 
@@ -70,9 +70,19 @@ We now need to copy all of the logger components in place
 
 Modify the file `freeswitch/equeue.xml.example` to point to the IP of you eQueue as well as provide a valid extension with call monitor rights to register as, then copy the file:
 
-`cp freeswitch/equeue.xml.example /etc/freeswitch/sip_profiles/internal`
+`sed -i '/<gateways>/a\<X-PRE-PROCESS cmd="include" data="internal\/*.xml"\/\>' /etc/freeswitch/sip_profiles/internal.xml`
+
+`sed -i 's/<!--<load module="mod_shout"\/>-->/<load module="mod_shout"\/>/g' /etc/freeswitch/autoload_configs/modules.conf.xml`
+
+`mkdir /etc/freeswitch/sip_profiles/internal`
+
+`cp freeswitch/equeue.xml.example /etc/freeswitch/sip_profiles/internal/equeue.xml`
 
 `cp freeswitch/cdr_csv.conf.xml /etc/freeswitch/autoload_configs`
+
+Restart FreeSWITCH to initialize the changes:
+
+`service freeswitch restart`
 
 ## Initialize database
 
@@ -82,7 +92,7 @@ Run the following database commands to create the database and create necessary 
 
 **NOTE: change the `YOURPASSHERE` value to your own password below**
 
-`mysql -u root -p -e "GRANT SELECT,INSERT,UPDATE,DELETE ON logger TO logger@'localhost' IDENTIFIED BY 'YOURPASSHERE';"`
+`mysql -u root -p -e "GRANT SELECT,INSERT,UPDATE,DELETE ON logger.* TO logger@'localhost' IDENTIFIED BY 'YOURPASSHERE';"`
 
 Now we need to create the database schema:
 
@@ -117,4 +127,37 @@ We need to set filesystem permissions so that FreeSWITCH can write to the folder
 
 `systemctl enable freeswitch`
 
-TODO: the rest of the installation
+## Restart components
+
+Restart the following components:
+
+`service freeswitch restart`
+
+`service logger restart`
+
+`service cron restart`
+
+## Install FFMPEG
+
+In order to convert recordings from the old logger we need to install FFMPEG. Unfortunately a ready made package is not available so we will need to compile it. Run the following commands to compile and install:
+
+`cd ~`
+
+`mkdir ffmpeg`
+
+`cd ffmpeg`
+
+`wget http://ffmpeg.org/releases/ffmpeg-3.1.4.tar.bz2`
+
+`tar xjf ffmpeg-3.1.4.tar.bz2`
+
+`cd ffmpeg-3.1.4`
+
+`./configure --enable-gpl --enable-postproc --enable-swscale --enable-avfilter --enable-libmp3lame --enable-libvorbis --enable-libtheora --enable-libx264 --enable-libspeex --enable-shared --enable-pthreads --enable-libopenjpeg --enable-libfaac --enable-nonfree`
+
+`make`
+
+`make install`
+
+`ldconfig`
+
