@@ -114,8 +114,19 @@ class listenerService(SocketServer.BaseRequestHandler):
             self: This class
             RequestData: the request sent by PInnacle client
         """
+        
+        if ('(' not in RequestData) or (')' not in RequestData):
+            logwrite.warning("%s: Invalid command received: %s" % (str(threading.current_thread().ident), RequestData))
+            respresult = "ERROR(NOT VALID COMMAND)\r\n"
+            logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+            return respresult
         if RequestData[0:5] == "START":
             callParams = self.Parse(RequestData[5:])
+            if 'BADDATA' in callParams:
+                logwrite.warning("%s: Invalid command received: %s" % (str(threading.current_thread().ident), RequestData))
+                respresult = "ERROR(NOT VALID COMMAND)\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
             originateResult = self.OriginateRecording(callParams)
             if originateResult[0] == False:
                 respresult = "ERROR(NOT RECORDING)\r\n"
@@ -127,6 +138,11 @@ class listenerService(SocketServer.BaseRequestHandler):
                 return respresult
         elif RequestData[0:4] == "STOP":
             callParams = self.Parse(RequestData[4:])
+            if 'BADDATA' in callParams:
+                logwrite.warning("%s: Invalid command received: %s" % (str(threading.current_thread().ident), RequestData))
+                respresult = "ERROR(NOT VALID COMMAND)\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
             recstop = self.StopRecording(callParams['agentID'])
             if recstop[0] == True:
                 respresult = "OK\r\n"
@@ -138,6 +154,11 @@ class listenerService(SocketServer.BaseRequestHandler):
                 return respresult
         elif RequestData[0:5] == "PAUSE":
             callParams = self.Parse(RequestData[5:])
+            if 'BADDATA' in callParams:
+                logwrite.warning("%s: Invalid command received: %s" % (str(threading.current_thread().ident), RequestData))
+                respresult = "ERROR(NOT VALID COMMAND)\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
             recpaused = self.PauseResumeRecording(callParams['agentID'], "mask")
             if recpaused[0] == True:
                 respresult = "OK\r\n"
@@ -149,6 +170,11 @@ class listenerService(SocketServer.BaseRequestHandler):
                 return respresult
         elif RequestData[0:6] == "RESUME":
             callParams = self.Parse(RequestData[6:])
+            if 'BADDATA' in callParams:
+                logwrite.warning("%s: Invalid command received: %s" % (str(threading.current_thread().ident), RequestData))
+                respresult = "ERROR(NOT VALID COMMAND)\r\n"
+                logwrite.debug("%s: Responding with: %s" % (str(threading.current_thread().ident), respresult))
+                return respresult
             recresume = self.PauseResumeRecording(callParams['agentID'], "unmask")
             if recresume[0] == True:
                 respresult = "OK\r\n"
@@ -182,6 +208,8 @@ class listenerService(SocketServer.BaseRequestHandler):
         """
         
         # Remove outer parenthesis
+        if not ((CallParameters[0] == '(') or (CallParameters[-1] == ')')):
+            return {'BADDATA': False}
         cleanParameters = CallParameters[1:-1]
         parametersArr = cleanParameters.split(",")
         i = 0
