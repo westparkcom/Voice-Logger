@@ -40,6 +40,10 @@ FSGID = freeswitch
 # CDR Files Location
 CDRFILELOC = /var/log/freeswitch/cdr-csv
 
+[TelSwitch]
+# Placeholder for when PInnacle doesn't send a DNIS when a call is picked up from park
+PARKNUMBER = 7800
+
 [Logging]
 LOGLEVEL = debug
 

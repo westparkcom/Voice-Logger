@@ -220,7 +220,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 paramsDict['agentID'] = item
             else:
                 name, var = item.partition("=")[::2]
-                paramsDict[name] = var
+                paramsDict[name] = var.rstrip()
             i = i + 1
         return paramsDict
     
@@ -416,6 +416,9 @@ class listenerService(SocketServer.BaseRequestHandler):
                 to start the recording
         """
         
+        if not 'fldDNIS' in CallData:
+            logwrite.debug("%s: Park resume request received, filling in missing DNIS..." % (str(threading.current_thread().ident)))
+            CallData['fldDNIS'] = str(config.get('TelSwitch', 'PARKNUMBER'))
         if not 'fldCSN' in CallData:
             logwrite.debug("%s: Phantom resume request received, attempting to match to current call..." % (str(threading.current_thread().ident)))
             callCheck = self.checkDuplicateCalls(str(CallData['agentID']))
