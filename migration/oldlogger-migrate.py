@@ -82,6 +82,8 @@ import grp
 import datetime
 from subprocess import Popen, PIPE
 from tqdm import tqdm
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 i = 0
 argsDict = {}
@@ -126,8 +128,10 @@ con = pymssql.connect(dbserver, dbusername, dbpassword, dbdatabase)
 cur = con.cursor()
 cur.execute("SELECT * FROM [CallLoggerStats] WHERE [LoggerDate] between '" + startday + " 00:00:00' and '" + endday + " 23:59:59'")
 rows = cur.fetchall()
-outarr = []
+outstr = ''
 dirsdict = {}
+successful = 0
+unsuccessful = 0
 for row in tqdm(rows):
     fileloc = row[8].split(stripstring,1)[1]
     convertloc = sourceloc + "/" + fileloc.replace("\\", "/")
@@ -150,14 +154,16 @@ for row in tqdm(rows):
         rc = child.returncode
         if rc == 0:
             f.write('(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);\n")
+            successful = successful + 1
         else:
             print "Something went wrong converting file", convertloc, "to", fileloc, ":"
             print stderr
             sqlout = '(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);"
             print "Here's the SQL so you can add it manually later if needed:"
+            outstr = outstr + sqlout + "\n"
             print sqlout
+            unsuccessful = unsuccessful + 1
     row = cur.fetchone()
-i = 0
 f.close()
 con.close()
 
@@ -172,15 +178,22 @@ if setpermissions == True:
             for file in files:
                 fname = os.path.join(root, file)
                 os.chown(fname, uid, gid)
+totalrecs = unsuccessful + successful 
 
-notifymesg = "Old Logger Migration complete for dates: " + startday + " to " + endday + "\r\nTotal records: " + str(i)
+notifymesg = "Old Logger Migration complete for dates: " + startday + " to " + endday + "\r\nTotal records: " + str(totalrecs) + "\r\n\r\nSuccessful conversions: " + str(successful) + "\r\nUnsuccessful conversions: " + str(unsuccessful)
 
 if mailnotify == True:
-    msg = ("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s" % (notifyfrom, ", ".join(notifyto), notifysubj, notifymesg))
-
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = notifysubj
+    msg['From'] = notifyfrom
+    body = MIMEText(notifymesg, 'plain')
+    attachment = MIMEText(outstr)
+    attachment.add_header('Content-Disposition', 'attachment', filename="MasterSQL.err")
+    msg.attach(attachment)
+    msg.attach(body)
     server = smtplib.SMTP(smtpserver)
     server.set_debuglevel(0)
-    server.sendmail(notifyfrom, notifyto, msg)
+    server.sendmail(notifyfrom, notifyto, msg.as_string())
     server.quit()
 else:
     print notifymesg
