@@ -129,6 +129,7 @@ cur = con.cursor()
 cur.execute("SELECT * FROM [CallLoggerStats] WHERE [LoggerDate] between '" + startday + " 00:00:00' and '" + endday + " 23:59:59'")
 rows = cur.fetchall()
 outstr = ''
+errstr = ''
 dirsdict = {}
 successful = 0
 unsuccessful = 0
@@ -158,6 +159,7 @@ for row in tqdm(rows):
         else:
             print "Something went wrong converting file", convertloc, "to", fileloc, ":"
             print stderr
+            errstr = errstr + stderr
             sqlout = '(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);"
             print "Here's the SQL so you can add it manually later if needed:"
             outstr = outstr + sqlout + "\n"
@@ -189,7 +191,10 @@ if mailnotify == True:
     body = MIMEText(notifymesg, 'plain')
     attachment = MIMEText(outstr)
     attachment.add_header('Content-Disposition', 'attachment', filename="MasterSQL.err")
+    attachment2 = MIMEText(errstr)
+    attachment2.add_header('Content-Disposition', 'attachment', filename="Output.err")
     msg.attach(attachment)
+    msg.attach(attachment2)
     msg.attach(body)
     server = smtplib.SMTP(smtpserver)
     server.set_debuglevel(0)
