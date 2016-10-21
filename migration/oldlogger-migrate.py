@@ -78,6 +78,7 @@ import smtplib
 import pwd
 import grp
 import datetime
+import subprocess as sp
 from tqdm import tqdm
 
 i = 0
@@ -140,14 +141,19 @@ for row in tqdm(rows):
             print "Error:", e
             sys.exit(1)
     fileloc = destloc + "/" + fileloc.replace("\\", "/")
-    outarr.append('(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '",0);')
-    ffcommand = 'ffmpeg -hide_banner -loglevel fatal -i "' + convertloc + '" -b:a 16k "' + fileloc + '"'
-    os.system(ffcommand)
+    if not os.path.isfile(fileloc):
+        ffcommand = 'ffmpeg -hide_banner -loglevel fatal -i "' + convertloc + '" -b:a 16k "' + fileloc + '"'
+        child = sp.Popen(ffcommand, stdout=sp.PIPE)
+        streamdata = child.communicate()[0]
+        rc = child.returncode
+        if rc == 0:
+            f.write('(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);\n")
+        else:
+            print "Something went wrong converting file", convertloc, "to", fileloc, " so I'm exiting..."
+            sys.exit(1)
+        #os.system(ffcommand)
     row = cur.fetchone()
 i = 0
-for line in outarr:
-    i = i + 1
-    f.write(line + "\n")    
 f.close()
 con.close()
 
