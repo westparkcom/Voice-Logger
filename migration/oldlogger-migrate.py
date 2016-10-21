@@ -63,6 +63,8 @@ notifyto = ["Tech <tech@yourdomain.com>"]
 # What SMTP server to use
 smtpserver = "10.10.10.10"
 
+# Whether to set permissions on files after conversion (not needed if writing to Windows share)
+setpermissions = False
 # FreeSWITCH UID for setting file permissions
 fsuid = "freeswitch"
 # FreeSWITCH GID for setting file permissions
@@ -78,7 +80,7 @@ import smtplib
 import pwd
 import grp
 import datetime
-import subprocess as sp
+from subprocess import Popen, PIPE
 from tqdm import tqdm
 
 i = 0
@@ -142,16 +144,18 @@ for row in tqdm(rows):
             sys.exit(1)
     fileloc = destloc + "/" + fileloc.replace("\\", "/")
     if not os.path.isfile(fileloc):
-        ffcommand = 'ffmpeg -hide_banner -loglevel fatal -i "' + convertloc + '" -b:a 16k "' + fileloc + '"'
-        child = sp.Popen(ffcommand, stdout=sp.PIPE)
-        streamdata = child.communicate()[0]
+        ffcommand = ['/usr/local/bin/ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', '"' + convertloc + '"', '-b:a', '16k', '"' + fileloc + '"']
+        child = Popen(ffcommand, stdout=PIPE, stderr=PIPE)
+        stdout, stderr = child.communicate()
         rc = child.returncode
         if rc == 0:
             f.write('(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);\n")
         else:
-            print "Something went wrong converting file", convertloc, "to", fileloc, " so I'm exiting..."
-            sys.exit(1)
-        #os.system(ffcommand)
+            print "Something went wrong converting file", convertloc, "to", fileloc, ":"
+            print stderr
+            sqlout = '(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);"
+            print "Here's the SQL so you can add it manually later if needed:"
+            print sqlout
     row = cur.fetchone()
 i = 0
 f.close()
@@ -160,13 +164,14 @@ con.close()
 uid = pwd.getpwnam(fsuid).pw_uid
 gid = grp.getgrnam(fsgid).gr_gid
 
-for key, value in dirsdict.items():
-    for root, dirs, files in os.walk(value):
-        for direc in dirs:
-            os.chown(direc, uid, gid)
-        for file in files:
-            fname = os.path.join(root, file)
-            os.chown(fname, uid, gid)
+if setpermissions == True:
+    for key, value in dirsdict.items():
+        for root, dirs, files in os.walk(value):
+            for direc in dirs:
+                os.chown(direc, uid, gid)
+            for file in files:
+                fname = os.path.join(root, file)
+                os.chown(fname, uid, gid)
 
 notifymesg = "Old Logger Migration complete for dates: " + startday + " to " + endday + "\r\nTotal records: " + str(i)
 
