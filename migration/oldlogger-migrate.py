@@ -177,8 +177,16 @@ for row in tqdm(rows):
 f.close()
 con.close()
 
-uid = pwd.getpwnam(fsuid).pw_uid
-gid = grp.getgrnam(fsgid).gr_gid
+try:
+    uid = pwd.getpwnam(fsuid).pw_uid
+except:
+    print "Warning: User", fsuid, "not found. Skipping setting permissions"
+    setpermissions = False
+try:
+    gid = grp.getgrnam(fsgid).gr_gid
+except:
+    print "Warning: Group", fsuid, "not found. Skipping setting permissions"
+    setpermissions = False
 
 if setpermissions == True:
     for key, value in dirsdict.items():
