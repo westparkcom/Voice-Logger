@@ -214,7 +214,10 @@ if mailnotify == True:
     msg.attach(body)
     server = smtplib.SMTP(smtpserver, smtpport)
     if smtpauth:
-        server.login(smtpuser, smtppass)
+        try:
+            server.login(smtpuser, smtppass)
+        except (Exception) as e:
+            print "Couldn't authenticate to SMTP server,", e
     server.set_debuglevel(0)
     server.sendmail(notifyfrom, notifyto, msg.as_string())
     server.quit()
