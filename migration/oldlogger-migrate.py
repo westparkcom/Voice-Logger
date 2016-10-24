@@ -62,6 +62,14 @@ notifyfrom = "Tech <tech@yourdomain.com>"
 notifyto = ["Tech <tech@yourdomain.com>"]
 # What SMTP server to use
 smtpserver = "10.10.10.10"
+# SMTP port
+smtpport = 25
+# Should we authenticate to the SMTP server
+smtpauth = False
+# STMP username
+smtpuser = 'user'
+# SMTP password
+smtppass = 'pass'
 
 # Whether to set permissions on files after conversion (not needed if writing to Windows share)
 setpermissions = False
@@ -196,7 +204,9 @@ if mailnotify == True:
     msg.attach(attachment)
     msg.attach(attachment2)
     msg.attach(body)
-    server = smtplib.SMTP(smtpserver)
+    server = smtplib.SMTP(smtpserver, smtpport)
+    if smtpauth:
+        server.login(smtpuser, smtppass)
     server.set_debuglevel(0)
     server.sendmail(notifyfrom, notifyto, msg.as_string())
     server.quit()

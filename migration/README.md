@@ -22,10 +22,10 @@ To run multiple instances it is recommended to use a utility like **screen** to 
 
 To use screen to run multiple instances execute the screen commands as such:
 
-    screen -d -m python logger-migrate.py --start=2016/10/01 --end=2016/10/31
-    screen -d -m python logger-migrate.py --start=2016/09/01 --end=2016/09/31
-    screen -d -m python logger-migrate.py --start=2016/08/01 --end=2016/08/30
-    screen -d -m python logger-migrate.py --start=2016/07/01 --end=2016/07/31
+    screen -d -m python oldlogger-migrate.py --start=2016/10/01 --end=2016/10/31
+    screen -d -m python oldlogger-migrate.py --start=2016/09/01 --end=2016/09/31
+    screen -d -m python oldlogger-migrate.py --start=2016/08/01 --end=2016/08/30
+    screen -d -m python oldlogger-migrate.py --start=2016/07/01 --end=2016/07/31
 
 This will invoke 4 screen sessions and execute the commands in separate, disconnectable virtual sessions. 
 
@@ -54,6 +54,11 @@ mailnotify | Set to **True** or **False** (case sensitive) if you wish to receiv
 notifyfrom | If mailnotify is set to **True**, set this email address to be the **From:** email address
 notifyto | If mailnotify is set to **True**, set this email address to be the **To:** email address
 smtpserver | The IP address or domain name of your SMTP server. Note that SMTP authentication is not currently supported
+smtpport | The port of the SMTP server
+smtpauth | Whether or not we should authenticate to the SMTP server
+smtpuser | If smtpauth is True, this is the username used to auth
+smtppass | If smtpauth is True, this is the password used to auth
+setpermissions | Whether or not you wish to set ownership permisssions on the files after migration. This is not necessary on mounted Windows shares as the permissions are determined at mount time
 fsuid | If FreeSWITCH is running as a user other than 'freeswitch' set it here
 fsgid | If FreeSWITCH is running as a group other than 'freeswitch' set it here
 
@@ -67,3 +72,6 @@ Once this has completed, restart cron to continue normal operation:
 
 `service cron restart`
 
+## Other notes
+
+During testing it has been found that the old logger system does not seem to store recordings that are shorter than 15 seconds, but will store a database entry for them. This has been accounted for in the migration script; at the end of the migration when the notification email is sent, the skipped records are sent in the email as well in a directly importable format.
