@@ -159,7 +159,7 @@ for row in tqdm(rows):
             sys.exit(1)
     fileloc = destloc + "/" + fileloc.replace("\\", "/")
     if not os.path.isfile(fileloc):
-        ffcommand = ['/usr/local/bin/ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', '"' + convertloc + '"', '-b:a', '16k', '"' + fileloc + '"']
+        ffcommand = ['/usr/local/bin/ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', convertloc, '-b:a', '16k', fileloc]
         child = Popen(ffcommand, stdout=PIPE, stderr=PIPE)
         stdout, stderr = child.communicate()
         rc = child.returncode
