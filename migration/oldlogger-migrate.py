@@ -64,6 +64,8 @@ notifyto = ["Tech <tech@yourdomain.com>"]
 smtpserver = "10.10.10.10"
 # SMTP port
 smtpport = 25
+# SMTP Use TLS
+smtptls = False
 # Should we authenticate to the SMTP server
 smtpauth = False
 # STMP username
@@ -213,11 +215,17 @@ if mailnotify == True:
     msg.attach(attachment2)
     msg.attach(body)
     server = smtplib.SMTP(smtpserver, smtpport)
+    server.ehlo()
+    if smtptls:
+        try:
+            server.starttls()
+        except (Exception) as e:
+            print "Couldn't start TLS:", e
     if smtpauth:
         try:
             server.login(smtpuser, smtppass)
         except (Exception) as e:
-            print "Couldn't authenticate to SMTP server,", e
+            print "Couldn't authenticate to SMTP server:", e
     server.set_debuglevel(0)
     server.sendmail(notifyfrom, notifyto, msg.as_string())
     server.quit()
