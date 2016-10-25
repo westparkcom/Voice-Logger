@@ -55,10 +55,11 @@ notifyfrom | If mailnotify is set to **True**, set this email address to be the 
 notifyto | If mailnotify is set to **True**, set this email address to be the **To:** email address
 smtpserver | The IP address or domain name of your SMTP server. Note that SMTP authentication is not currently supported
 smtpport | The port of the SMTP server
-smtpauth | Whether or not we should authenticate to the SMTP server
+smtptls | **True** if you want to use TLS, **False** if not
+smtpauth | **True** if you want to authenticate to the SMTP server, **False** if not
 smtpuser | If smtpauth is True, this is the username used to auth
 smtppass | If smtpauth is True, this is the password used to auth
-setpermissions | Whether or not you wish to set ownership permisssions on the files after migration. This is not necessary on mounted Windows shares as the permissions are determined at mount time
+setpermissions | **True** or **False**. Whether or not you wish to set ownership permisssions on the files after migration. This is not necessary on mounted Windows shares as the permissions are determined at mount time
 fsuid | If FreeSWITCH is running as a user other than 'freeswitch' set it here
 fsgid | If FreeSWITCH is running as a group other than 'freeswitch' set it here
 
