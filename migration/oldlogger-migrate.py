@@ -206,6 +206,7 @@ if mailnotify == True:
     msg = MIMEMultipart('alternative')
     msg['Subject'] = notifysubj
     msg['From'] = notifyfrom
+    msg['To'] = ", ".join(notifyto)
     body = MIMEText(notifymesg, 'plain')
     attachment = MIMEText(outstr)
     attachment.add_header('Content-Disposition', 'attachment', filename="MasterSQL.err")
