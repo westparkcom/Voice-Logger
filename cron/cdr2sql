@@ -131,3 +131,4 @@ for file in filelist:
     os.chown(file, 0, 0)
     os.remove(file)
 
+print len(cdr_contents_base), "records parsed."
