@@ -4,16 +4,11 @@ import uuid
 import os
 import sys
 import smtplib
-import pwd
-import grp
 import datetime
 import glob
-from subprocess import Popen, PIPE
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import ConfigParser
-import logging
-import logging.config
 import MySQLdb as mdb
 
 # Get config and logging info from CLI args
@@ -96,7 +91,7 @@ try:
     cur = con.cursor()
 except (Exception) as e:
     if str(config.get('Notification', 'NOTIFICATION')) == 'true':
-            subject = "!!!LOGGER - COULD CONNECT TO DATABASE!!!"
+            subject = "!!!LOGGER - COULD NOT CONNECT TO DATABASE!!!"
             message = "FATAL Exception caught during database connection: " + str(e) + "\r\n\r\nCheck to make sure the cdr2sql program can access the database."
             sendEmail(subject, message)
     print "Unable to establish connection to database:", e
