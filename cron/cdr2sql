@@ -62,7 +62,10 @@ def sendEmail(subj, mesg):
         except (Exception) as e:
             print "Couldn't authenticate to SMTP server:", e
     server.set_debuglevel(0)
-    server.sendmail(str(config.get('Notification', 'FROMEMAIL')), tolist, msg.as_string())
+    try:
+        server.sendmail(str(config.get('Notification', 'FROMEMAIL')), tolist, msg.as_string())
+    except (Exception) as e:
+        print "Couldn't send email:", e
     server.quit()
 
 # Load in all CDR CSV files
