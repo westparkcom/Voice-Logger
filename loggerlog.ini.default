@@ -2,7 +2,7 @@
 keys=root,loggerLog
 
 [handlers]
-keys=consoleHandler,fileHandler
+keys=consoleHandler,loggerFileHandler
 
 [formatters]
 keys=simpleFormatter
@@ -12,24 +12,24 @@ level=DEBUG
 handlers=consoleHandler
 
 [logger_loggerLog]
-level=DEBUG
-handlers=fileHandler
+level=ERROR
+handlers=loggerFileHandler
 qualname=loggerLog
 propagate=0
+
+[handler_loggerFileHandler]
+class=handlers.TimedRotatingFileHandler
+interval=midnight
+backupCount=5
+formatter=simpleFormatter
+level=ERROR
+args=('/var/log/logger/logger.log',)
 
 [handler_consoleHandler]
 class=StreamHandler
 level=DEBUG
 formatter=simpleFormatter
 args=(sys.stdout,)
-
-[handler_fileHandler]
-class=handlers.TimedRotatingFileHandler
-interval=midnight
-backupCount=5
-formatter=simpleFormatter
-level=DEBUG
-args=('/var/log/logger/logger.log',)
 
 [formatter_simpleFormatter]
 format=%(asctime)s:%(levelname)s: %(message)s

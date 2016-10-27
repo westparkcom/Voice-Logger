@@ -1,0 +1,1 @@
+1 * * * * root ntpdate pool.ntp.org

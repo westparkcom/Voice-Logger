@@ -20,7 +20,7 @@ Run the following commands to install prerequisite packages:
 
 `apt-get remove ffmpeg`
 
-`apt-get install git python-autopep8 python-ESL mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout python-pip php5 php5-mysql python-dev freetds-dev`
+`apt-get install git python-autopep8 python-mysqldb python-ESL mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout python-pip python-dev freetds-dev ntpdate`
 
 Note that you'll need to set you MySQL root password. Don't forget it as you'll need it later!
 
@@ -60,7 +60,7 @@ We now need to copy all of the logger components in place
 
 `chmod +x /usr/local/bin/cdr-rotate`
 
-`cp cron/cdr2mysql /usr/local/bin`
+`cp cron/cdr2sql /usr/local/bin`
 
 `cat cron/crontab >> /etc/crontab`
 
@@ -84,6 +84,17 @@ Restart FreeSWITCH to initialize the changes:
 
 `service freeswitch restart`
 
+## NTP Setup
+
+NTP is important for proper timestamping of recordings. It is recommended to keep in sync with a central NTP server once an hour.
+
+* To use the defult NTP server `pool.ntp.org`:
+  * Run the command `cat cron/ntpcron >> /etc/crontab`
+* To use a custom NTP server:
+  * Modify `cron/ntpcron` and replace `pool.ntp.org` with your own NTP server address
+  * Run the command `cat cron/ntpcron >> /etc/crontab`
+
+
 ## Initialize database
 
 Run the following database commands to create the database and create necessary user:
@@ -101,6 +112,10 @@ Now we need to create the database schema:
 ## Set configuration settings
 
 Modify the `LOGGERDBPASS` setting in `/usr/local/etc/loggerconfig.ini` to reflect the password you chose in the **Initialize database** section
+
+If you wish to receive email notifications if failures occur during SQL import, set the parameters in the `Notification` section according to your needs.
+
+* If you need to send to multiple email addresses, separate them with commas
 
 ## Create necessary directories
 
@@ -160,4 +175,3 @@ In order to convert recordings from the old logger we need to install FFMPEG. Un
 `make install`
 
 `ldconfig`
-

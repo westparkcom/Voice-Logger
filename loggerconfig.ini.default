@@ -53,3 +53,14 @@ LOGGERDB = logger
 LOGGERDBTABLE = CallLoggerStats
 LOGGERDBUSER = logger
 LOGGERDBPASS = "password"
+
+[Notification]
+NOTIFICATION = true
+FROMEMAIL = Tech <tech@domain.tld>
+TOEMAIL = Tech <tech@domain.tld>
+SMTPSERVER = localhost
+SMTPPORT = 25
+SMTPTLS = false
+SMTPAUTH = false
+SMTPUSER = user
+SMTPPASS = pass

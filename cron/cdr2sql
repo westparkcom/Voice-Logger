@@ -1,0 +1,130 @@
+#!/usr/bin/python
+
+import uuid
+import os
+import sys
+import smtplib
+import pwd
+import grp
+import datetime
+import glob
+from subprocess import Popen, PIPE
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import ConfigParser
+import logging
+import logging.config
+import MySQLdb as mdb
+
+# Get config and logging info from CLI args
+i = 0
+argsDict = {}
+for item in sys.argv:
+    if i == 0:
+        i = i + 1
+        pass
+    else:
+        i = i + 1
+        paramname, paramval = item.partition("=")[::2]
+        argsDict[paramname] = paramval
+        
+try:
+    loggerConfigFile = argsDict['--config']
+except:
+    print ""
+    print "Error: configuration file location not specified."
+    print ""
+    print "Usage: python", sys.argv[0], "--config=/path/to/configfile/loggerconfig.ini"
+    sys.exit(1)
+    
+# Global config
+config = ConfigParser.ConfigParser()
+config.read(loggerConfigFile)
+
+def sendEmail(subj, mesg):
+    tolist = str(config.get('Notification', 'TOEMAIL')).replace(", ",",").split(",")
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subj
+    msg['From'] = str(config.get('Notification', 'FROMEMAIL'))
+    msg['To'] = str(config.get('Notification', 'TOEMAIL'))
+    body = MIMEText(mesg, 'plain')
+    msg.attach(body)
+    server = smtplib.SMTP(str(config.get('Notification', 'SMTPSERVER')), str(config.get('Notification', 'SMTPPORT')))
+    server.ehlo()
+    if str(config.get('Notification', 'SMTPTLS')) == "true":
+        try:
+            server.starttls()
+        except (Exception) as e:
+            print "Couldn't start TLS:", e
+    if str(config.get('Notification', 'SMTPAUTH')) == "true":
+        try:
+            server.login(str(config.get('Notification', 'SMTPUSER')), str(config.get('Notification', 'SMTPPASS')))
+        except (Exception) as e:
+            print "Couldn't authenticate to SMTP server:", e
+    server.set_debuglevel(0)
+    server.sendmail(str(config.get('Notification', 'FROMEMAIL')), tolist, msg.as_string())
+    server.quit()
+
+# Load in all CDR CSV files
+filepath = str(config.get('FreeSWITCH', 'CDRFILELOC'))
+filelist = glob.glob(filepath + "/Master.csv.*")
+badsql = False
+badsqlfile = filepath + "/BadSQL.csv." + str(uuid.uuid4())
+badsqlarr = []
+
+cdr_contents_base = []
+
+for file in filelist:
+    try:
+        with open(file) as ins:
+            for line in ins:
+                cdr_contents_base.append(line)
+    except (Exception) as e:
+        if str(config.get('Notification', 'NOTIFICATION')) == 'true':
+            subject = "!!!LOGGER - COULD NOT OPEN FILES!!!"
+            message = "FATAL Exception caught during file import: " + str(e) + "\r\n\r\nCheck to make sure the cdr2sql program can access the import files."
+            sendEmail(subject, message)
+        print "FATAL Exception caught during file import:", e
+        print "Aborting..."
+        sys.exit(1)
+
+try:
+    con = mdb.connect(str(config.get('CDR-Database', 'LOGGERDBSERVER')), str(config.get('CDR-Database', 'LOGGERDBUSER')), str(config.get('CDR-Database', 'LOGGERDBPASS')), str(config.get('CDR-Database', 'LOGGERDB')))
+    cur = con.cursor()
+except (Exception) as e:
+    if str(config.get('Notification', 'NOTIFICATION')) == 'true':
+            subject = "!!!LOGGER - COULD CONNECT TO DATABASE!!!"
+            message = "FATAL Exception caught during database connection: " + str(e) + "\r\n\r\nCheck to make sure the cdr2sql program can access the database."
+            sendEmail(subject, message)
+    print "Unable to establish connection to database:", e
+    print "Aborting..."
+    sys.exit(1)
+
+for item in cdr_contents_base:
+    sql = "INSERT INTO " + str(config.get('CDR-Database', 'LOGGERDBTABLE')) + " " + str(item)
+    try:
+        cur.execute(sql)
+    except (Exception) as e:
+        print "Bad SQL:", sql
+        print "SQL error:", e
+        print "Adding to bad SQL file..."
+        badsqlarr.append(str(item))
+        badsql = True
+        with open (badsqlfile, "a") as f:
+            f.write(item)
+con.commit()
+con.close()
+if badsql and str(config.get('Notification', 'NOTIFICATION')) == 'true':
+    message = "Bad SQL was found when attempting to import SQL into logger database. Please review file " + badsqlfile + " on logger server to see the queries.\r\n\r\nOnce you have fixed the queries in this file, rename " + badsqlfile + " to " + filepath + "/Master.csv.fixed so that these queries can be added to the database."
+    subject = "!!!LOGGER - BAD SQL LOG GENERATED!!!"
+    sendEmail(subject, message)
+    
+elif badsql:
+    message = "Bad SQL was found when attempting to import SQL into logger database. Please review file " + badsqlfile + " on logger server to see the queries.\r\n\r\nOnce you have fixed the queries in this file, rename " + badsqlfile + " to " + filepath + "/Master.csv.fixed so that these queries can be added to the database."
+    print message
+    
+for file in filelist:
+    print "Removing file", file
+    os.chown(file, 0, 0)
+    os.remove(file)
+
