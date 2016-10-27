@@ -1,1 +1,1 @@
-* * * * * root /usr/local/bin/cdr-rotate
+* * * * * root /usr/local/bin/cdr-rotate >> /var/log/logger/cdr-rotate.log 2>&1
