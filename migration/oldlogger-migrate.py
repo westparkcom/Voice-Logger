@@ -129,7 +129,12 @@ notifysubj = "Migration complete for dates " + startday + " to " + endday
 
 try:
     cdrfilename = cdrloc + "/Master.csv." + str(uuid.uuid4())
+    nofilename = cdrloc + "/NoFile.csv." + str(uuid.uuid4())
+    errorfilename = cdrloc + "/Errors.log." + str(uuid.uuid4())
     f = open(cdrfilename, 'w')
+    nf = open(nofilename, 'w')
+    ef = open(errorfilename, 'w')
+
 except (Exception) as e:
     print "Can't open file, error:", e
     sys.exit(1)
@@ -138,8 +143,6 @@ con = pymssql.connect(dbserver, dbusername, dbpassword, dbdatabase)
 cur = con.cursor()
 cur.execute("SELECT * FROM [CallLoggerStats] WHERE [LoggerDate] between '" + startday + " 00:00:00' and '" + endday + " 23:59:59'")
 rows = cur.fetchall()
-outstr = ''
-errstr = ''
 dirsdict = {}
 successful = 0
 unsuccessful = 0
@@ -169,14 +172,16 @@ for row in tqdm(rows):
         else:
             print "Something went wrong converting file", convertloc, "to", fileloc, ":"
             print stderr
-            errstr = errstr + stderr
+            ef.write("Error converting file " + convertloc + ": " + stderr + "\n")
             sqlout = '(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);"
             print "Here's the SQL so you can add it manually later if needed:"
-            outstr = outstr + sqlout + "\n"
+            nf.write(sqlout + "\n")
             print sqlout
             unsuccessful = unsuccessful + 1
     row = cur.fetchone()
 f.close()
+ef.close()
+nf.close()
 con.close()
 
 try:
@@ -208,12 +213,6 @@ if mailnotify == True:
     msg['From'] = notifyfrom
     msg['To'] = ", ".join(notifyto)
     body = MIMEText(notifymesg, 'plain')
-    attachment = MIMEText(outstr)
-    attachment.add_header('Content-Disposition', 'attachment', filename="MasterSQL.err")
-    attachment2 = MIMEText(errstr)
-    attachment2.add_header('Content-Disposition', 'attachment', filename="Output.err")
-    msg.attach(attachment)
-    msg.attach(attachment2)
     msg.attach(body)
     server = smtplib.SMTP(smtpserver, smtpport)
     server.ehlo()
