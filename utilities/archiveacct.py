@@ -30,7 +30,7 @@ except:
     print ""
     print "Error: configuration file location not specified."
     print ""
-    print "Usage: python", sys.argv[0], "--config=/path/to/configfile/loggerconfig.ini --accts=111,222,333,444 --capdate=10/10/2016"
+    print "Usage: python", sys.argv[0], "--config=/path/to/configfile/loggerconfig.ini --accts=111,222,333,444 --capdate=2016/10/10"
     sys.exit(1)
 
 try:
