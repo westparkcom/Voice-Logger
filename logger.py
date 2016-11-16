@@ -402,6 +402,33 @@ class listenerService(SocketServer.BaseRequestHandler):
         else:
             logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
             return "ERROR"
+            
+    def checkGateways(self, gatewayName, maxCalls):
+        """ Checks for multiple recordings per agentID in FreeSWITCH
+        
+        Gets a list of active recordings from FreeSWITCH and iterates
+        through them, checking each agent_id variable for each call to see if
+        that call matches. If there's a match, return [True, recfilename].
+        If no match, return True. If no active recordings,
+        return False. If there's a problem, return "ERROR"
+        
+        Args:
+            self: This class
+            agentID: (string) The agentID to check against
+        """
+        # Connect to FreeSWITCH
+        fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
+        if fscon.connected():
+            # Let's check to see if we're already recording for this agent ID.
+            # If we are, kill the call.
+            calls = fscon.api("limit_usage", "hash logger gw_" + str(gatewayName))
+            currentCalls = calls.getBody()
+            if int(currentCalls) < int(maxCalls):
+                logwrite.debug("%s: Gateway %s is currently at %s which is under MAXCALLS threshold of %s , using this gateway" % (str(threading.current_thread().ident), str(gatewayName), str(currentCalls), str(maxCalls)))
+                return True
+            else:
+                logwrite.debug("%s: Gateway %s is currently at %s which is over MAXCALLS threshold of %s, skipping this gateway" % (str(threading.current_thread().ident), str(gatewayName), str(currentCalls), str(maxCalls)))
+                return False
     
     def OriginateRecording(self, CallData):
         """ Starts recording call
@@ -456,39 +483,29 @@ class listenerService(SocketServer.BaseRequestHandler):
         # Generate a filename
         recordname = str(now.strftime("%Y-%m-%d_%H%M%S_%f")) + '-' + str(CallData['fldCSN']) + '.' + str(config.get('FreeSWITCH', 'FILEEXT'))
         filename = folder + '/' + recordname
-        logwrite.debug("%s: Filename to record; %s" % (str(threading.current_thread().ident), filename))
+        logwrite.debug("%s: Filename to record: %s" % (str(threading.current_thread().ident), filename))
         # Generate our outbound gateways (maybe clean this up at some point?)
-        origGateways = "sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY1')) + "/#*" + str(CallData['agentID'])
-        try:
-            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY2')) + "/#*" + str(CallData['agentID'])
-        except:
-            pass
-        try:
-            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY3')) + "/#*" + str(CallData['agentID'])
-        except:
-            pass
-        try:
-            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY4')) + "/#*" + str(CallData['agentID'])
-        except:
-            pass
-        try:
-            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY5')) + "/#*" + str(CallData['agentID'])
-        except:
-            pass
-        try:
-            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY6')) + "/#*" + str(CallData['agentID'])
-        except:
-            pass
-        try:
-            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY7')) + "/#*" + str(CallData['agentID'])
-        except:
-            pass
-        try:
-            origGateways = origGateways + "|sofia/gateway/" + str(config.get('FreeSWITCH', 'FSGATEWAY8')) + "/#*" + str(CallData['agentID'])
-        except:
-            pass
+        gatewayFinal = ''
+        gatewayLimit = 0
+        gateways = config.items('FreeSWITCH-Gateways')
+        for key, gateway in gateways:
+            gwData = json.loads(gateway)
+            try:
+                gwCheck = self.checkGateways(gwData[0], gwData[1])
+            except (Exception) as e:
+                logwrite.error("%s: Unable to check gateway : %s" % (str(threading.current_thread().ident), e))
+                pass
+            if gwCheck:
+                gatewayFinal = str(gwData[0])
+                gatewayLimit = int(gwData[1])
+                break
+        if gatewayFinal == '':
+            logwrite.debug("%s: No gateways available to originate! Aborting..." % (str(threading.current_thread().ident)))
+            returnVar = [False, False]
+            return returnVar
+        origGateway = "sofia/gateway/" + str(gatewayFinal) + "/" + str(config.get('FreeSWITCH', 'DIALSTRING')) + str(CallData['agentID'])
         # Originate the call
-        origString = "{agent_id=" + str(CallData['agentID']) + ",agent_login_id=" + str(CallData['fldAgentLoginID']) + ",call_dnis=" + str(CallData['fldDNIS']) + ",call_ani=" + str(CallData['fldANI']) + ",call_type=" + str(CallData['fldCallType']) + ",call_csn=" + str(CallData['fldCSN']) + ",call_acct=" + str(CallData['fldClientID']) + ",recording_file=" + filename + ",recording_paused=0}" + origGateways + " &lua(" + str(config.get('FreeSWITCH', 'FSLUA')) + ")"
+        origString = "{gw_name=" + str(gatewayFinal) + ",max_calls=" + str(gatewayLimit) + ",agent_id=" + str(CallData['agentID']) + ",agent_login_id=" + str(CallData['fldAgentLoginID']) + ",call_dnis=" + str(CallData['fldDNIS']) + ",call_ani=" + str(CallData['fldANI']) + ",call_type=" + str(CallData['fldCallType']) + ",call_csn=" + str(CallData['fldCSN']) + ",call_acct=" + str(CallData['fldClientID']) + ",recording_file=" + filename + ",recording_paused=0}" + origGateway + " &lua(" + str(config.get('FreeSWITCH', 'FSLUA')) + ")"
         logwrite.debug("%s: Sending command to freeswitch: originate %s" % (str(threading.current_thread().ident), origString))
         # Connect to FreeSWITCH
         fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))

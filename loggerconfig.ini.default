@@ -15,8 +15,21 @@ FSHOST = localhost
 FSPORT = 8021
 # Password to connect to FreeSWITCH
 FSPASSWORD = ClueCon
+# Location of lua script for FreeSWITCH to reference
+FSLUA = /etc/freeswitch/scripts/logger.lua
+# FreeSWITCH UID
+FSUID = freeswitch
+# FreeSWITCH GID
+FSGID = freeswitch
+# CDR Files Location
+CDRFILELOC = /var/log/freeswitch/cdr-csv
+# Feature code dial string for monitor feature
+DIALSTRING = #*
+
+[FreeSWITCH-Gateways]
+# Formatted in ["gatewayname", max_calls format]
 # Name of first gateway to try
-FSGATEWAY1 = equeue
+FSGATEWAY1 = ["equeue", 1]
 # Name of second gateway to try
 #FSGATEWAY2 = Adtran-1
 # Name of third gateway to try
@@ -31,14 +44,6 @@ FSGATEWAY1 = equeue
 #FSGATEWAY7 = Adtran-6
 # Name of eighth gateway to try
 #FSGATEWAY8 = Adtran-7
-# Location of lua script for FreeSWITCH to reference
-FSLUA = /etc/freeswitch/scripts/logger.lua
-# FreeSWITCH UID
-FSUID = freeswitch
-# FreeSWITCH GID
-FSGID = freeswitch
-# CDR Files Location
-CDRFILELOC = /var/log/freeswitch/cdr-csv
 
 [TelSwitch]
 # Placeholder for when PInnacle doesn't send a DNIS when a call is picked up from park
