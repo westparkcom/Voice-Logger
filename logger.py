@@ -427,17 +427,15 @@ class listenerService(SocketServer.BaseRequestHandler):
             return "ERROR"
             
     def checkGateways(self, gatewayName, maxCalls):
-        """ Checks for multiple recordings per agentID in FreeSWITCH
+        """ Checks to see if gateway is free to use
         
-        Gets a list of active recordings from FreeSWITCH and iterates
-        through them, checking each agent_id variable for each call to see if
-        that call matches. If there's a match, return [True, recfilename].
-        If no match, return True. If no active recordings,
-        return False. If there's a problem, return "ERROR"
+        Gets limit usage and returns True if gateway is available, False if
+        at maximum capacity, or False if cannot connect to FreeSWITCH
         
         Args:
             self: This class
-            agentID: (string) The agentID to check against
+            gatewayName: Name of the FreeSWITCH gateway to check
+            maxCalls: maximum number of calls allowed on the gateway
         """
         # Connect to FreeSWITCH
         fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
@@ -510,7 +508,7 @@ class listenerService(SocketServer.BaseRequestHandler):
         recordname = str(now.strftime("%Y-%m-%d_%H%M%S_%f")) + '-' + str(CallData['fldCSN']) + '.' + str(config.get('FreeSWITCH', 'FILEEXT'))
         filename = folder + '/' + recordname
         logwrite.debug("%s: Filename to record: %s" % (str(threading.current_thread().ident), filename))
-        # Generate our outbound gateways (maybe clean this up at some point?)
+        # Generate our outbound gateways
         gatewayFinal = ''
         gatewayLimit = 0
         gateways = config.items('FreeSWITCH-Gateways')
@@ -526,7 +524,13 @@ class listenerService(SocketServer.BaseRequestHandler):
                 gatewayLimit = int(gwData[1])
                 break
         if gatewayFinal == '':
-            logwrite.debug("%s: No gateways available to originate! Aborting..." % (str(threading.current_thread().ident)))
+            #If we get here all gateways are at max capactity
+            logwrite.error("%s: No gateways available to originate! Aborting..." % (str(threading.current_thread().ident)))
+            if config.get('Notification', 'NOTIFICATION') == 'true':
+                emailSubject = "Logger start failure for CSN: %s" % (str(CallData['fldCSN']))
+                emailMessage = "All gateways are at maximum capacity, but unable to start recording for CSN: %s" % (str(CallData['fldCSN']))
+                logwrite.debug("%s: Sending alert email" % (str(threading.current_thread().ident)))
+                self.sendEmail(emailSubject, emailMessage)
             returnVar = [False, False]
             return returnVar
         origGateway = "sofia/gateway/" + str(gatewayFinal) + "/" + str(config.get('FreeSWITCH', 'DIALSTRING')) + str(CallData['agentID'])
@@ -552,8 +556,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 fscon.disconnect()
                 return returnVar
             # Sleep for a tiny bit, then check if our call is still active. If not, the recording didn't start...
-            # NOTE: This probably needs to increase to allow for trying multiple gateways.
-            time.sleep(.33)
+            time.sleep(.45)
             fsreturn = fscon.api("uuid_buglist", origUUID)
             UUIDAlive = fsreturn.getBody().strip()
             if UUIDAlive[:4] == "-ERR":
@@ -579,6 +582,16 @@ class listenerService(SocketServer.BaseRequestHandler):
         return returnVar
 
     def sendEmail(self, subj, mesg):
+        """ Sends email
+        
+        Sends email to address(es) defined in config file
+        Server parameters are also defined in config file
+        
+        Args:
+            self: This class
+            subj: Message subject
+            mesg: Message content
+        """
         tolist = str(config.get('Notification', 'TOEMAIL')).replace(", ",",").split(",")
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subj
