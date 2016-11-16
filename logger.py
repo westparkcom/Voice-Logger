@@ -423,6 +423,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             # If we are, kill the call.
             calls = fscon.api("limit_usage", "hash logger gw_" + str(gatewayName))
             currentCalls = calls.getBody()
+            fscon.disconnect()
             if int(currentCalls) < int(maxCalls):
                 logwrite.debug("%s: Gateway %s is currently at %s which is under MAXCALLS threshold of %s , using this gateway" % (str(threading.current_thread().ident), str(gatewayName), str(currentCalls), str(maxCalls)))
                 return True
