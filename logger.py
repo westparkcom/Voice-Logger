@@ -20,6 +20,9 @@ import ESL
 import json
 import pwd
 import grp
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Get config and logging info from CLI args
 i = 0
@@ -273,9 +276,14 @@ class listenerService(SocketServer.BaseRequestHandler):
                 return [True, "OK"]
         else:
             logwrite.error("%s: Unable to connect to FreeSWITCH to %s call, responding with ERROR" % (str(threading.current_thread().ident), str(action)))
+            if config.get('Notification', 'NOTIFICATION') == 'true':
+                emailSubject = "Logger %s failure for agent ID: %s" % (str(action), str(agentID))
+                emailMessage = "Unable to connect to FreeSWITCH to %s recording for agent ID: %s." % (str(action), str(agentID))
+                logwrite.debug("%s: Sending alert email" % (str(threading.current_thread().ident)))
+                self.sendEmail(emailSubject, emailMessage)
             return [False, "INTERNAL ERROR"]
     
-    def StopRecording(this, agentID):
+    def StopRecording(self, agentID):
         """ Stops the recording in FreeSWITCH
         
         Gets a list of active recordings from FreeSWITCH and iterates
@@ -314,10 +322,15 @@ class listenerService(SocketServer.BaseRequestHandler):
             else:
                 return [True, "OK"]
         else:
-            logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
+            logwrite.error("%s: Unable to connect to FreeSWITCH to stop call, responding with ERROR" % (str(threading.current_thread().ident)))
+            if config.get('Notification', 'NOTIFICATION') == 'true':
+                emailSubject = "Logger stop failure for agent ID: %s" % (str(agentID))
+                emailMessage = "Unable to connect to FreeSWITCH to stop recording for agent: %s" % (str(agentID))
+                logwrite.debug("%s: Sending alert email" % (str(threading.current_thread().ident)))
+                self.sendEmail(emailSubject, emailMessage)
             return [False, "INTERNAL ERROR"]
     
-    def checkDuplicateCalls(this, agentID):
+    def checkDuplicateCalls(self, agentID):
         """ Checks for multiple recordings per agentID in FreeSWITCH
         
         Gets a list of active recordings from FreeSWITCH and iterates
@@ -356,10 +369,15 @@ class listenerService(SocketServer.BaseRequestHandler):
                 fscon.disconnect()
                 return [False, False]
         else:
-            logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
+            logwrite.error("%s: Unable to connect to FreeSWITCH to check duplicate calls, responding with ERROR" % (str(threading.current_thread().ident)))
+            if config.get('Notification', 'NOTIFICATION') == 'true':
+                emailSubject = "Logger duplicate call check failure for agent ID: %s" % (str(agentID))
+                emailMessage = "Unable to connect to FreeSWITCH to check for duplicate recordings for agent: %s" % (str(agentID))
+                logwrite.debug("%s: Sending alert email" % (str(threading.current_thread().ident)))
+                self.sendEmail(emailSubject, emailMessage)
             return [False, False]
             
-    def killDuplicateCalls(this, agentID):
+    def killDuplicateCalls(self, agentID):
         """ Checks for multiple recordings per agentID in FreeSWITCH
         
         Gets a list of active recordings from FreeSWITCH and iterates
@@ -400,7 +418,12 @@ class listenerService(SocketServer.BaseRequestHandler):
             fscon.disconnect()
             return True
         else:
-            logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
+            logwrite.error("%s: Unable to connect to FreeSWITCH to kill call, responding with ERROR" % (str(threading.current_thread().ident)))
+            if config.get('Notification', 'NOTIFICATION') == 'true':
+                emailSubject = "Logger recording kill failure for agent ID: %s" % (str(agentID))
+                emailMessage = "Unable to connect to FreeSWITCH to kill duplicate recording for agent: %s" % (str(agentID))
+                logwrite.debug("%s: Sending alert email" % (str(threading.current_thread().ident)))
+                self.sendEmail(emailSubject, emailMessage)
             return "ERROR"
             
     def checkGateways(self, gatewayName, maxCalls):
@@ -430,6 +453,8 @@ class listenerService(SocketServer.BaseRequestHandler):
             else:
                 logwrite.debug("%s: Gateway %s is currently at %s which is over MAXCALLS threshold of %s, skipping this gateway" % (str(threading.current_thread().ident), str(gatewayName), str(currentCalls), str(maxCalls)))
                 return False
+        else:
+            return False
     
     def OriginateRecording(self, CallData):
         """ Starts recording call
@@ -518,6 +543,11 @@ class listenerService(SocketServer.BaseRequestHandler):
                 origUUID =  OrigResult[4:]
             else:
                 logwrite.error("%s: Unable to originate call in FreeSWITCH, received error: %s. responding with ERROR" % (str(threading.current_thread().ident), OrigResult))
+                if config.get('Notification', 'NOTIFICATION') == 'true':
+                    emailSubject = "Logger start failure for CSN: %s" % (str(CallData['fldCSN']))
+                    emailMessage = "Call originated, but unable to start recording for CSN: %s, received the following error: %s.\n\nCall Data:\n\n%s" % (str(CallData['fldCSN']), str(OrigResult), str(origString))
+                    logwrite.debug("%s: Sending alert email" % (str(threading.current_thread().ident)))
+                    self.sendEmail(emailSubject, emailMessage)
                 returnVar = [False, False]
                 fscon.disconnect()
                 return returnVar
@@ -528,15 +558,53 @@ class listenerService(SocketServer.BaseRequestHandler):
             UUIDAlive = fsreturn.getBody().strip()
             if UUIDAlive[:4] == "-ERR":
                 logwrite.error("%s: Call originated, but unable to start recording in FreeSWITCH, received the following error: %s. Responding with ERROR" % (str(threading.current_thread().ident), UUIDAlive))
+                if config.get('Notification', 'NOTIFICATION') == 'true':
+                    emailSubject = "Logger start failure for CSN: %s" % (str(CallData['fldCSN']))
+                    emailMessage = "Call originated, but unable to start recording for CSN: %s, received the following error: %s.\n\nCall Data:\n\n%s" % (str(CallData['fldCSN']), str(UUIDAlive), str(origString))
+                    logwrite.debug("%s: Sending alert email" % (str(threading.current_thread().ident)))
+                    self.sendEmail(emailSubject, emailMessage)
                 returnVar = [False, False]
                 fscon.disconnect()
                 return returnVar
         else:
             logwrite.error("%s: Unable to connect to FreeSWITCH to originate call, responding with ERROR" % (str(threading.current_thread().ident)))
+            if config.get('Notification', 'NOTIFICATION') == 'true':
+                emailSubject = "Logger start failure for CSN: %s" % (str(CallData['fldCSN']))
+                emailMessage = "Unable to connect to FreeSWITCH to start recording for CSN: %s, received the following error: %s.\n\nCall Data:\n\n%s" % (str(CallData['fldCSN']), str(UUIDAlive), str(origString))
+                logwrite.debug("%s: Sending alert email" % (str(threading.current_thread().ident)))
+                self.sendEmail(emailSubject, emailMessage)
             returnVar = [False, False]
             return returnVar
         returnVar = [True, "OK(" + recordname + ")"]
         return returnVar
+
+    def sendEmail(self, subj, mesg):
+        tolist = str(config.get('Notification', 'TOEMAIL')).replace(", ",",").split(",")
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subj
+        msg['From'] = str(config.get('Notification', 'FROMEMAIL'))
+        msg['To'] = str(config.get('Notification', 'TOEMAIL'))
+        body = MIMEText(mesg, 'plain')
+        msg.attach(body)
+        server = smtplib.SMTP(str(config.get('Notification', 'SMTPSERVER')), str(config.get('Notification', 'SMTPPORT')))
+        server.ehlo()
+        if str(config.get('Notification', 'SMTPTLS')) == "true":
+            try:
+                server.starttls()
+            except (Exception) as e:
+                logwrite.error("%s: Unable to start TLS to send email, falling back to plain: %s" % (str(threading.current_thread().ident), str(e)))
+        if str(config.get('Notification', 'SMTPAUTH')) == "true":
+            try:
+                server.login(str(config.get('Notification', 'SMTPUSER')), str(config.get('Notification', 'SMTPPASS')))
+            except (Exception) as e:
+                logwrite.error("%s: Unable to authenticate to email server: %s" % (str(threading.current_thread().ident), str(e)))
+        server.set_debuglevel(0)
+        try:
+            server.sendmail(str(config.get('Notification', 'FROMEMAIL')), tolist, msg.as_string())
+        except (Exception) as e:
+            logwrite.error("%s: Unable to send alert email: %s" % (str(threading.current_thread().ident), str(e)))
+        server.quit()
+        return True
             
 
 class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
