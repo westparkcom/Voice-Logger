@@ -446,7 +446,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             currentCalls = calls.getBody()
             fscon.disconnect()
             if int(currentCalls) < int(maxCalls):
-                logwrite.debug("%s: Gateway %s is currently at %s which is under MAXCALLS threshold of %s , using this gateway" % (str(threading.current_thread().ident), str(gatewayName), str(currentCalls), str(maxCalls)))
+                logwrite.debug("%s: Gateway %s is currently at %s which is under MAXCALLS threshold of %s, using this gateway" % (str(threading.current_thread().ident), str(gatewayName), str(currentCalls), str(maxCalls)))
                 return True
             else:
                 logwrite.debug("%s: Gateway %s is currently at %s which is over MAXCALLS threshold of %s, skipping this gateway" % (str(threading.current_thread().ident), str(gatewayName), str(currentCalls), str(maxCalls)))
@@ -512,6 +512,8 @@ class listenerService(SocketServer.BaseRequestHandler):
         gatewayFinal = ''
         gatewayLimit = 0
         gateways = config.items('FreeSWITCH-Gateways')
+        # Randomize gateway list to minimize chance of race condition
+        random.shuffle(gateways)
         for key, gateway in gateways:
             gwData = json.loads(gateway)
             try:
