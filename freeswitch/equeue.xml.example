@@ -1,13 +1,34 @@
 <include>
+  <!--///
+          eQueue users: each concurrent recording requires a gateway!!!
+          This means if you wish to record 50 simultaneous recordings, 
+          you will need 50 phone extensions defined in the eQueue, all 50
+          phone extensions will need to be added to Monitors, all 50
+          phone extensions will need to be registered as gateways in this
+          file, and all of the gateways will need to be defined in your
+          loggerconfig.ini file.
+  ///-->
+  
   <!--/// This is the gateway name you'll define in your logger config ///-->
-  <gateway name="equeue">
-  <!--/// account username *required* ///-->
-  <param name="username" value="999"/>
-  <!--/// auth realm: *optional* same as gateway name, if blank ///-->
-  <param name="realm" value="10.10.10.10"/>
-  <!--/// account password *required* ///-->
-  <param name="password" value="999"/>
-  <!--/// register ///-->
-  <param name="register" value="true"/>
+  <gateway name="equeue-1">
+    <!--/// account username *required* ///-->
+    <param name="username" value="500"/>
+    <!--/// IP Address of the SIP server (eQueue)  ///-->
+    <param name="realm" value="10.10.10.10"/>
+    <!--/// account password *required* ///-->
+    <param name="password" value="500"/>
+    <!--/// register ///-->
+    <param name="register" value="true"/>
+  </gateway>
+  <!--/// This is the gateway name you'll define in your logger config ///-->
+  <gateway name="equeue-2">
+    <!--/// account username *required* ///-->
+    <param name="username" value="501"/>
+    <!--/// IP Address of the SIP server (eQueue) ///-->
+    <param name="realm" value="10.10.10.10"/>
+    <!--/// account password *required* ///-->
+    <param name="password" value="501"/>
+    <!--/// register ///-->
+    <param name="register" value="true"/>
   </gateway>
 </include>

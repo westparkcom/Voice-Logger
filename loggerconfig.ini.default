@@ -28,22 +28,46 @@ DIALSTRING = #*
 
 [FreeSWITCH-Gateways]
 # Formatted in ["gatewayname", max_calls format]
-# Name of first gateway to try
-FSGATEWAY1 = ["equeue", 1]
-# Name of second gateway to try
-#FSGATEWAY2 = Adtran-1
-# Name of third gateway to try
-#FSGATEWAY3 = Adtran-3
-# Name of fourth gateway to try
-#FSGATEWAY4 = Adtran-3
-# Name of fifth gateway to try
-#FSGATEWAY5 = Adtran-4
-# Name of sixth gateway to try
-#FSGATEWAY6 = Adtran-5
-# Name of seventh gateway to try
-#FSGATEWAY7 = Adtran-6
-# Name of eighth gateway to try
-#FSGATEWAY8 = Adtran-7
+# Name of first gateway
+GATEWAY1 = ["equeue-1", 1]
+# Name of second gateway
+GATEWAY2 = ["equeue-2", 1]
+# And so on, you can define as many as you like
+#GATEWAY3 = ["equeue-3", 1]
+#GATEWAY4 = ["equeue-4", 1]
+#GATEWAY5 = ["equeue-5", 1]
+#GATEWAY6 = ["equeue-6", 1]
+#GATEWAY7 = ["equeue-7", 1]
+#GATEWAY8 = ["equeue-8", 1]
+#GATEWAY9 = ["equeue-9", 1]
+#GATEWAY10 = ["equeue-10", 1]
+#GATEWAY11 = ["equeue-11", 1]
+#GATEWAY12 = ["equeue-12", 1]
+#GATEWAY13 = ["equeue-13", 1]
+#GATEWAY14 = ["equeue-14", 1]
+#GATEWAY15 = ["equeue-15", 1]
+#GATEWAY16 = ["equeue-16", 1]
+#GATEWAY17 = ["equeue-17", 1]
+#GATEWAY18 = ["equeue-18", 1]
+#GATEWAY19 = ["equeue-19", 1]
+#GATEWAY20 = ["equeue-20", 1]
+#GATEWAY21 = ["equeue-21", 1]
+#GATEWAY22 = ["equeue-22", 1]
+#GATEWAY23 = ["equeue-23", 1]
+#GATEWAY24 = ["equeue-24", 1]
+#GATEWAY25 = ["equeue-25", 1]
+#GATEWAY26 = ["equeue-26", 1]
+#GATEWAY27 = ["equeue-27", 1]
+#GATEWAY28 = ["equeue-28", 1]
+#GATEWAY29 = ["equeue-29", 1]
+#GATEWAY30 = ["equeue-30", 1]
+#GATEWAY31 = ["equeue-31", 1]
+#GATEWAY32 = ["equeue-32", 1]
+#GATEWAY33 = ["equeue-33", 1]
+#GATEWAY34 = ["equeue-34", 1]
+#GATEWAY35 = ["equeue-35", 1]
+#GATEWAY36 = ["equeue-36", 1]
+#GATEWAY37 = ["equeue-37", 1]
 
 [TelSwitch]
 # Placeholder for when PInnacle doesn't send a DNIS when a call is picked up from park

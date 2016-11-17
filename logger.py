@@ -404,7 +404,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                     fsreturn = fscon.api("uuid_getvar", varstring)
                     retAgentID = fsreturn.getBody().strip()
                     if str(retAgentID) == str(agentID):
-                        logwrite.warn("%s: Duplicate call for agent ID %s found, killing UUID %s..." % (str(threading.current_thread().ident), str(agentID), str(row['call_uuid'])))
+                        logwrite.debug("%s: Duplicate call for agent ID %s found, killing UUID %s..." % (str(threading.current_thread().ident), str(agentID), str(row['call_uuid'])))
                         fscon.api("uuid_kill", str(row['call_uuid']))
                         time.sleep(.33)
             except (Exception) as e:
