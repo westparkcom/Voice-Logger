@@ -82,22 +82,27 @@ class listenerService(SocketServer.BaseRequestHandler):
             data = 'dummy'
             logwrite.info("%s: Client connected from address %s:%s" %
                           (str(threading.current_thread().ident), self.client_address[0], str(self.client_address[1])))
-            self.request.settimeout(
-                int(config.get('Network', 'TCPTIMEOUT')))
-            data = self.request.recv(4096)
-            logwrite.debug("%s: Received data: %s" %
-                           (str(threading.current_thread().ident), data))
-            cleandata = data.strip()
-            # Send what we received off to be processed
-            response = self.RequestHandler(cleandata)
-            self.request.send(response)
+            while len(data):
+                self.request.settimeout(
+                    int(config.get('Network', 'TCPTIMEOUT')))
+                data = self.request.recv(4096)
+                logwrite.debug("%s: Received data: %s" %
+                               (str(threading.current_thread().ident), data))
+                cleandata = data.strip()
+                # Send what we received off to be processed
+                response = self.RequestHandler(cleandata)
+                self.request.send(response)
             logwrite.info("%s: Client %s:%s disconnected" %
                           (str(threading.current_thread().ident), self.client_address[0], str(self.client_address[1])))
             self.request.close()
             return
         except(socket.timeout, socket.error, threading.ThreadError, Exception) as e:
-            logwrite.info("%s: Error: %s" %
-                          (str(threading.current_thread().ident), e))
+            if str(e) == 'timed out':
+                logwrite.info("%s: Connection %s for client %s:%s" %
+                          (str(threading.current_thread().ident), str(e), self.client_address[0], str(self.client_address[1])))
+            else:
+                logwrite.error("%s: Error: %s" %
+                          (str(threading.current_thread().ident), str(e)))
             self.request.close()
             return
             
@@ -266,7 +271,10 @@ class listenerService(SocketServer.BaseRequestHandler):
                         j = j + 1
                         time.sleep(.33)
             except (Exception) as e:
-                logwrite.debug("%s: Exception encountered:, %s..." % (str(threading.current_thread().ident), e))
+                if str(e) == "'rows'":
+                    logwrite.debug("%s: No active recordings found for agent ID: %s" % (str(threading.current_thread().ident), str(agentID)))
+                else:
+                    logwrite.error("%s: Exception encountered: %s" % (str(threading.current_thread().ident), e))
                 fscon.disconnect()
                 return [False, "NOT RECORDING"]
             fscon.disconnect()
@@ -313,7 +321,10 @@ class listenerService(SocketServer.BaseRequestHandler):
                         j = j + 1
                         time.sleep(.33)
             except (Exception) as e:
-                logwrite.debug("%s: Exception encountered:, %s..." % (str(threading.current_thread().ident), e))
+                if str(e) == "'rows'":
+                    logwrite.debug("%s: No active recordings found for agent ID: %s" % (str(threading.current_thread().ident), str(agentID)))
+                else:
+                    logwrite.error("%s: Exception encountered: %s" % (str(threading.current_thread().ident), e))
                 fscon.disconnect()
                 return [False, "NOT RECORDING"]
             fscon.disconnect()
@@ -365,7 +376,10 @@ class listenerService(SocketServer.BaseRequestHandler):
                         fscon.disconnect()
                         return [True, filenamestr]
             except (Exception) as e:
-                logwrite.debug("%s: Exception encountered:, %s..." % (str(threading.current_thread().ident), e))
+                if str(e) == "'rows'":
+                    logwrite.debug("%s: No active recordings found for agent ID: %s" % (str(threading.current_thread().ident), str(agentID)))
+                else:
+                    logwrite.error("%s: Exception encountered: %s" % (str(threading.current_thread().ident), e))
                 fscon.disconnect()
                 return [False, False]
         else:
@@ -408,7 +422,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                         fscon.api("uuid_kill", str(row['call_uuid']))
                         time.sleep(.33)
             except (Exception) as e:
-                if str(e) == 'rows':
+                if str(e) == "'rows'":
                     logwrite.debug("%s: No calls found..." % (str(threading.current_thread().ident)))
                     fscon.disconnect()
                     return False
