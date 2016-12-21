@@ -20,13 +20,15 @@ Run the following commands to install prerequisite packages:
 
 `apt-get remove ffmpeg`
 
-`apt-get install git python-autopep8 python-mysqldb python-ESL mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout python-pip python-dev freetds-dev ntpdate`
+`apt-get install git python-autopep8 python-mysqldb python-ESL mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout python-pip python-dev freetds-dev ntpdate libtag1-dev`
 
 Note that you'll need to set you MySQL root password. Don't forget it as you'll need it later!
 
 `pip install tqdm`
 
 `pip install pymssql`
+
+`pip install pytaglib`
 
 ## Get logger package
 
@@ -79,6 +81,8 @@ Modify the file `freeswitch/equeue.xml.example` to point to the IP of you eQueue
 `cp freeswitch/equeue.xml.example /etc/freeswitch/sip_profiles/internal/equeue.xml`
 
 `cp freeswitch/cdr_csv.conf.xml /etc/freeswitch/autoload_configs`
+
+`cp sounds/beep.mp3 /usr/share/freeswitch/sounds`
 
 Restart FreeSWITCH to initialize the changes:
 

@@ -77,10 +77,15 @@ PARKNUMBER = 7800
 LOGLEVEL = debug
 
 [CDR-Database]
+# Host of database server
 LOGGERDBSERVER = localhost
+# Database name
 LOGGERDB = logger
+# Database table
 LOGGERDBTABLE = CallLoggerStats
+# Database user
 LOGGERDBUSER = logger
+# Database password
 LOGGERDBPASS = "password"
 
 [Notification]
@@ -93,3 +98,15 @@ SMTPTLS = false
 SMTPAUTH = false
 SMTPUSER = user
 SMTPPASS = pass
+
+[Options]
+# Remove silence from recordings when caller is put on hold or call is paused
+REMOVEHOLDSILENCE = true
+# Temp directory location for processing silence removal
+TEMPDIRECTORY = /tmp
+# Insert a beep to mark pause/resume periods
+INSERTBEEPMARKER = true
+# Location of the beep marker file to use (needs to be EXACT format of the recordings, example 16kbps 8kHz mono MP3)
+BEEPMARKERFILE = /usr/share/freeswitch/sounds/beep.mp3
+# FFMpeg Location
+FFMPEGLOCATION = /usr/local/bin/ffmpeg

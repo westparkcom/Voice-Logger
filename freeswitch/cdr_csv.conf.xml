@@ -12,7 +12,7 @@
 	<!-- <param name="master-file-only" value="true"/> -->
   </settings>
   <templates>
-    <template name="logger">(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (${agent_id},"${call_acct}","${call_type}","${call_dnis}","${call_ani}","${call_csn}","${agent_login_id}","${recording_file}","${start_stamp}",${duration},"${uuid}",${recording_paused});</template>
+    <template name="logger">(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (${agent_id},"${call_acct}","${call_type}","${call_dnis}","${call_ani}","${call_csn}","${agent_login_id}","${recording_file}","${start_stamp}",${duration},"${uuid}",${recording_paused});;;${recording_paused};;;${recording_file};;;${pausearr}</template>
   </templates>
 </configuration>
 
