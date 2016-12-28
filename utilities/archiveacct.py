@@ -56,7 +56,7 @@ except:
     
 if capDateExist:
     try:
-        capDate = str(datetime.strptime(capDate, "%Y/%m/%d"))
+        str(datetime.strptime(capDate, "%Y/%m/%d"))
     except:
         print ""
         print "Incorrect date format for --capdate, please use YYYY/MM/DD"
