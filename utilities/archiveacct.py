@@ -12,6 +12,8 @@ import MySQLdb as mdb
 from time import sleep
 from tqdm import tqdm
 
+todaysDate = str(datetime.now().strftime("%Y-%m-%d"))
+
 # Get config and logging info from CLI args
 i = 0
 argsDict = {}
@@ -50,10 +52,11 @@ except:
     print "Cap date not set, not applying date date restriction"
     print ""
     capDateExist = False
+    capDate = "01/01/1970"
     
 if capDateExist:
     try:
-        datetime.strptime(capDate, "%Y/%m/%d")
+        capDate = datetime.strptime(capDate, "%Y/%m/%d")
     except:
         print ""
         print "Incorrect date format for --capdate, please use YYYY/MM/DD"
@@ -117,11 +120,11 @@ try:
     if not os.path.isdir(archivepath):
         os.makedirs(archivepath)
     for acct in acctIntList:
-        if not os.path.isdir(archivepath + "/" + str(acct)):
-            os.makedirs(archivepath + "/" + str(acct))
-        nof[str(acct)] = open(archivepath + "/" + str(acct) + "/NoFile.lis", 'a')
-        errf[str(acct)] = open(archivepath + "/" + str(acct) + "/SQLErrors.log", 'a')
-        sqlf[str(acct)] = open(archivepath + "/" + str(acct) + "/SQLRestore.sql", 'a')
+        if not os.path.isdir(archivepath + "/" + str(acct) + "_" + todaysDate):
+            os.makedirs(archivepath + "/" + str(acct) + "_" + todaysDate)
+        nof[str(acct)] = open(archivepath + "/" + str(acct) + "_" + todaysDate + "/NoFile.lis", 'a')
+        errf[str(acct)] = open(archivepath + "/" + str(acct) + "_" + todaysDate + "/SQLErrors.log", 'a')
+        sqlf[str(acct)] = open(archivepath + "/" + str(acct) + "_" + todaysDate + "/SQLRestore.sql", 'a')
 except (Exception) as e:
     print "Can't create folders for archival, error:", e
     sys.exit(1)
@@ -160,7 +163,7 @@ for items in queryResults:
         pathList = relativePath.split("/")
         # Create recording dir, exit if can't
         try:
-            loggerPath = archivepath + "/" + str(row[2]) + "/" + pathList[0]
+            loggerPath = archivepath + "/" + str(row[2]) + "_" + todaysDate  + "/" + pathList[0]
             if not os.path.isdir(loggerPath):
                 os.makedirs(loggerPath)
         except (Exception) as e:
@@ -200,7 +203,7 @@ for acct in acctIntList:
 # Tar everything up here
 sleep(1)
 for acct in acctIntList:
-    tarPath = archivepath + "/" + str(acct)
+    tarPath = archivepath + "/" + str(acct) + "_"  + todaysDate
     outputFile = tarPath + ".tar"
     try:
         with tarfile.open(outputFile, "w") as tar:
