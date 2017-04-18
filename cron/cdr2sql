@@ -6,10 +6,15 @@ import sys
 import smtplib
 import datetime
 import glob
+import pwd
+import grp
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import ConfigParser
+from subprocess import Popen, PIPE
 import MySQLdb as mdb
+import taglib
+import shutil
 
 # Get config and logging info from CLI args
 i = 0
@@ -35,6 +40,7 @@ except:
 # Global config
 config = ConfigParser.ConfigParser()
 config.read(loggerConfigFile)
+
 
 def sendEmail(subj, mesg):
     tolist = str(config.get('Notification', 'TOEMAIL')).replace(", ",",").split(",")
@@ -62,6 +68,117 @@ def sendEmail(subj, mesg):
     except (Exception) as e:
         print "Couldn't send email:", e
     server.quit()
+
+
+def removesilence(filepath, splitpoints):
+    tempdir = str(config.get('Options', 'TEMPDIRECTORY'))
+    splitarr = splitpoints.split("|:")
+    splits = []
+    filename = os.path.split(os.path.abspath(filepath))[1]
+    filearr = filename.split('.')
+    tempfilepattern = tempdir + '/' + filearr[0] + '%03d.mp3'
+    tempfilelist = tempdir + '/' + filearr[0] + '.txt'
+    splitlist = []
+    for idx in range(len(splitarr)):
+        if idx == 0:
+            splits.append(splitarr[idx].split(">>"))
+        elif (idx > 0): # and (splitarr[idx-1].split(">>")[0] != splitarr[idx].split(">>")[0])):
+            splits.append(splitarr[idx].split(">>"))
+            splitlist.append(splitarr[idx].split(">>")[1].strip())
+    # Split out the files
+    ffcommand = [str(config.get('Options', 'FFMPEGLOCATION')), '-hide_banner', '-loglevel', 'error', '-i', 'file:' + filepath, '-codec:a', 'copy' , '-map_metadata', '-1', '-f', 'segment', '-segment_times', ','.join(splitlist), tempfilepattern]
+    print ' '.join(ffcommand)
+    child = Popen(ffcommand, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = child.communicate()
+    rc = child.returncode
+    if rc != 0:
+        # Something went wrong if we hit this
+        if str(config.get('Notification', 'NOTIFICATION')) == 'true':
+            subject = "!!!LOGGER - COULD NOT REMOVE SILENCE FROM FILE!!!"
+            message = "Error removing silence from file: " + filepath + "\r\n\r\nReceived the following error: " + str(stderr)
+            sendEmail(subject, message)
+        print "Error during silence removal:", stderr
+        print "Skipping file", filepath
+        # Cleanup temp files
+        tmpfilelist = glob.glob(tempdir + '/' + filearr[0] + '.*')
+        for files in tmpfilelist:
+            print "Removing file", files
+            os.chown(files, 0, 0)
+            os.remove(files)
+        return False
+    else:
+        concatfiles = []
+        for idx in range(len(splits)):
+            if splits[idx][0] == "START":
+                tmpfilename = '%s/%s%03d.mp3' % (tempdir, filearr[0], idx)
+                concatfiles.append(tmpfilename)
+            elif ((splits[idx][0] == "PAUSE") and (str(config.get('Options', 'INSERTBEEPMARKER')) == 'true')):
+                concatfiles.append(str(config.get('Options', 'BEEPMARKERFILE')))
+    # Output list of files to temp file for ffmpeg processing
+    with open(tempfilelist, 'w') as file_handler:
+        for item in concatfiles:
+            linecontents = "file '" + item +"'\n"
+            file_handler.write(linecontents)
+    tempoutfile = tempdir + '/' + filearr[0] + 'temp.mp3'
+    ffcommand = [str(config.get('Options', 'FFMPEGLOCATION')), '-hide_banner', '-loglevel', 'error', '-safe', '0', '-f', 'concat', '-i', tempfilelist, '-codec:a', 'libmp3lame', '-b:a', '16k', '-map_metadata', '-1', tempoutfile]
+    print ' '.join(ffcommand)
+    child = Popen(ffcommand, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = child.communicate()
+    rc = child.returncode
+    if rc != 0:
+        # Something went wrong if we hit this
+        if str(config.get('Notification', 'NOTIFICATION')) == 'true':
+            subject = "!!!LOGGER - COULD NOT CONCATENATE SILENCE REMOVAL FILES!!!"
+            message = "Error concatenating silence removal files.\r\n\r\nReceived the following error: " + str(stderr)
+            sendEmail(subject, message)
+        print "Error during concatenating silence removal files:", stderr
+        print "Skipping file", filepath
+        # Cleanup temp files
+        tmpfilelist = glob.glob(tempdir + '/' + filearr[0] + '*')
+        for files in tmpfilelist:
+            print "Removing file", files
+            os.chown(files, 0, 0)
+            os.remove(files)
+        return False
+    # If concatenation succeeded, we need to copy all metadata and replace existing recording
+    origtag = taglib.File(filepath)
+    origmeta = origtag.tags
+    newtag = taglib.File(tempoutfile)
+    newtag.tags = origmeta
+    newtag.save()
+    try:
+        shutil.copy(tempoutfile, filepath)
+    except (Exception) as e:
+        print "Error copying file", filepath
+        print "Error details:", str(e)
+        return False
+    setpermissions = True
+    try:
+        uid = pwd.getpwnam('freeswitch').pw_uid
+    except:
+        print "Warning: User", fsuid, "not found. Skipping setting permissions"
+        setpermissions = False
+    try:
+        gid = grp.getgrnam('freeswitch').gr_gid
+    except:
+        print "Warning: Group", fsuid, "not found. Skipping setting permissions"
+        setpermissions = False
+    if setpermissions:
+        try:
+            os.chown(filepath, uid, gid)
+        except (Exception) as e:
+            print "Error setting permissions for file", filepath
+            print "Error details:", str(e)
+            return False
+    # Cleanup temp files
+    filestr = tempdir + '/' + filearr[0] + '*'
+    tmpfiles = glob.glob(filestr)
+    for files in tmpfiles:
+        print "Removing file", files
+        os.chown(files, 0, 0)
+        os.remove(files)
+    return True
+
 
 # Load in all CDR CSV files
 filepath = str(config.get('FreeSWITCH', 'CDRFILELOC'))
@@ -99,7 +216,10 @@ except (Exception) as e:
     sys.exit(1)
 
 for item in cdr_contents_base:
-    sql = "INSERT INTO " + str(config.get('CDR-Database', 'LOGGERDBTABLE')) + " " + str(item)
+    items = item.split(";;;")
+    sql = "INSERT INTO " + str(config.get('CDR-Database', 'LOGGERDBTABLE')) + " " + str(items[0]) + ';' 
+    if ((str(config.get('Options', 'REMOVEHOLDSILENCE')) == 'true') and (str(items[1]) == '1')):
+        removesilence(items[2], items[3])
     try:
         cur.execute(sql)
     except (Exception) as e:

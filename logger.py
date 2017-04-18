@@ -257,8 +257,14 @@ class listenerService(SocketServer.BaseRequestHandler):
                 for row in CurrentCalls['rows']:
                     logwrite.debug("%s: Checking UUID %s for agent ID %s..." % (str(threading.current_thread().ident), str(row['call_uuid']), str(agentID)))
                     varstring = str(row['call_uuid']) + " agent_id"
+                    pausearrstring = str(row['call_uuid']) + " pausearr"
+                    startepochstring = str(row['call_uuid']) + " answered_time"
                     fsreturn = fscon.api("uuid_getvar", varstring)
+                    fsreturn2 = fscon.api("uuid_getvar", pausearrstring)
+                    fsreturn3 = fscon.api("uuid_getvar", startepochstring)
                     retAgentID = fsreturn.getBody().strip()
+                    retPauseArr = fsreturn2.getBody().strip()
+                    retStartEpoch = fsreturn3.getBody().strip()
                     if str(retAgentID) == str(agentID):
                         logwrite.warn("%s: Call for agent ID %s found, %s recording for %s..." % (str(threading.current_thread().ident), str(agentID), str(action), str(row['call_uuid'])))
                         filestring = str(row['call_uuid']) + " recording_file"
@@ -268,6 +274,16 @@ class listenerService(SocketServer.BaseRequestHandler):
                         logwrite.debug("%s: FreeSWITCH output: %s" % (str(threading.current_thread().ident), output.getBody().strip()))
                         pausestring = str(row['call_uuid']) + " recording_paused 1"
                         fscon.api("uuid_setvar", pausestring)
+                        logwrite.debug("%s: Current epoch time: %s" % (str(threading.current_thread().ident), str(time.time())))
+                        logwrite.debug("%s: Call start epoch time: %s" % (str(threading.current_thread().ident), str(retStartEpoch)[:10]))
+                        prtime = int(time.time()) - int(str(retStartEpoch)[:10])
+                        if action == "mask":
+                            prechar = "PAUSE>>"
+                        else:
+                            prechar = "START>>"
+                        pausetimes = retPauseArr + "|:" + prechar + str(prtime)
+                        pausetimestr = str(row['call_uuid']) + " pausearr " + pausetimes
+                        fscon.api("uuid_setvar", pausetimestr)
                         j = j + 1
                         time.sleep(.33)
             except (Exception) as e:
@@ -551,7 +567,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             return returnVar
         origGateway = "sofia/gateway/" + str(gatewayFinal) + "/" + str(config.get('FreeSWITCH', 'DIALSTRING')) + str(CallData['agentID'])
         # Originate the call
-        origString = "{gw_name=" + str(gatewayFinal) + ",max_calls=" + str(gatewayLimit) + ",agent_id=" + str(CallData['agentID']) + ",agent_login_id=" + str(CallData['fldAgentLoginID']) + ",call_dnis=" + str(CallData['fldDNIS']) + ",call_ani=" + str(CallData['fldANI']) + ",call_type=" + str(CallData['fldCallType']) + ",call_csn=" + str(CallData['fldCSN']) + ",call_acct=" + str(CallData['fldClientID']) + ",recording_file=" + filename + ",recording_paused=0}" + origGateway + " &lua(" + str(config.get('FreeSWITCH', 'FSLUA')) + ")"
+        origString = "{gw_name=" + str(gatewayFinal) + ",max_calls=" + str(gatewayLimit) + ",agent_id=" + str(CallData['agentID']) + ",agent_login_id=" + str(CallData['fldAgentLoginID']) + ",call_dnis=" + str(CallData['fldDNIS']) + ",call_ani=" + str(CallData['fldANI']) + ",call_type=" + str(CallData['fldCallType']) + ",call_csn=" + str(CallData['fldCSN']) + ",call_acct=" + str(CallData['fldClientID']) + ",recording_file=" + filename + ",recording_paused=0,pausearr=ARRAY::START>>0}" + origGateway + " &lua(" + str(config.get('FreeSWITCH', 'FSLUA')) + ")"
         logwrite.debug("%s: Sending command to freeswitch: originate %s" % (str(threading.current_thread().ident), origString))
         # Connect to FreeSWITCH
         fscon = ESL.ESLconnection(config.get('FreeSWITCH', 'FSHOST'), config.get('FreeSWITCH', 'FSPORT'), config.get('FreeSWITCH', 'FSPASSWORD'))
