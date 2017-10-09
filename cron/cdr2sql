@@ -15,6 +15,8 @@ from subprocess import Popen, PIPE
 import MySQLdb as mdb
 import taglib
 import shutil
+import logging
+import logging.config
 
 # Get config and logging info from CLI args
 i = 0
@@ -29,18 +31,29 @@ for item in sys.argv:
         argsDict[paramname] = paramval
         
 try:
+    loggerLogConfigFile = argsDict['--logconfig']
+except:
+    print ""
+    print "Error: log configuration file location not specified."
+    print ""
+    print "Usage: python", sys.argv[0], "--config=/path/to/configfile/loggerconfig.ini --logconfig=/path/to/logconfigfile/loggerlog.ini"
+    sys.exit(1)
+try:
     loggerConfigFile = argsDict['--config']
 except:
     print ""
     print "Error: configuration file location not specified."
     print ""
-    print "Usage: python", sys.argv[0], "--config=/path/to/configfile/loggerconfig.ini"
+    print "Usage: python", sys.argv[0], "--config=/path/to/configfile/loggerconfig.ini --logconfig=/path/to/logconfigfile/loggerlog.ini"
     sys.exit(1)
     
 # Global config
 config = ConfigParser.ConfigParser()
 config.read(loggerConfigFile)
 
+# Logging setup
+logging.config.fileConfig(loggerLogConfigFile)
+logwrite = logging.getLogger('loggerLog')
 
 def sendEmail(subj, mesg):
     tolist = str(config.get('Notification', 'TOEMAIL')).replace(", ",",").split(",")
@@ -72,6 +85,7 @@ def sendEmail(subj, mesg):
 
 def removesilence(filepath, splitpoints):
     tempdir = str(config.get('Options', 'TEMPDIRECTORY'))
+    logwrite.debug('CDR2SQL: Recording split points: {}'.format(splitpoints))
     splitarr = splitpoints.split("|:")
     splits = []
     filename = os.path.split(os.path.abspath(filepath))[1]
@@ -82,17 +96,26 @@ def removesilence(filepath, splitpoints):
     for idx in range(len(splitarr)):
         if idx == 0:
             splits.append(splitarr[idx].split(">>"))
+            logwrite.debug("CDR2SQL: Split point added: {}".format(splitarr[idx]))
         elif (idx > 0): # and (splitarr[idx-1].split(">>")[0] != splitarr[idx].split(">>")[0])):
-            splits.append(splitarr[idx].split(">>"))
-            splitlist.append(splitarr[idx].split(">>")[1].strip())
+            if splitarr[idx-1].split(">>")[0] == splitarr[idx].split(">>")[0]:
+                # If this matches we've encountered a double-command, we'll ignore the second command
+                logwrite.debug("CDR2SQL: Double-command split point ignored: {}".format(splitarr[idx]))
+                pass
+            else:
+                splits.append(splitarr[idx].split(">>"))
+                splitlist.append(splitarr[idx].split(">>")[1].strip())
+                logwrite.debug("CDR2SQL: Split point added: {}".format(splitarr[idx]))
     # Split out the files
     ffcommand = [str(config.get('Options', 'FFMPEGLOCATION')), '-hide_banner', '-loglevel', 'error', '-i', 'file:' + filepath, '-codec:a', 'copy' , '-map_metadata', '-1', '-f', 'segment', '-segment_times', ','.join(splitlist), tempfilepattern]
-    print ' '.join(ffcommand)
+    logwrite.debug('CDR2SQL: ffmpeg split command: {}'.format(' '.join(ffcommand)))
     child = Popen(ffcommand, stdout=PIPE, stderr=PIPE)
     stdout, stderr = child.communicate()
     rc = child.returncode
+    logwrite.debug("CDR2SQL: ffmpeg output: {}\r\n{}".format(stdout, stderr))
     if rc != 0:
         # Something went wrong if we hit this
+        logwrite.error("CDR2SQL: ffmpeg error, could not remove silence from file")
         if str(config.get('Notification', 'NOTIFICATION')) == 'true':
             subject = "!!!LOGGER - COULD NOT REMOVE SILENCE FROM FILE!!!"
             message = "Error removing silence from file: " + filepath + "\r\n\r\nReceived the following error: " + str(stderr)
@@ -119,12 +142,15 @@ def removesilence(filepath, splitpoints):
         for item in concatfiles:
             linecontents = "file '" + item +"'\n"
             file_handler.write(linecontents)
+    logwrite.debug("CDR2SQL: Temp file concat list: {}".format(', '.join(concatfiles)))
     tempoutfile = tempdir + '/' + filearr[0] + 'temp.mp3'
     ffcommand = [str(config.get('Options', 'FFMPEGLOCATION')), '-hide_banner', '-loglevel', 'error', '-safe', '0', '-f', 'concat', '-i', tempfilelist, '-codec:a', 'libmp3lame', '-b:a', '16k', '-map_metadata', '-1', tempoutfile]
     print ' '.join(ffcommand)
+    logwrite.debug("CDR2SQL: ffmpeg join command: {}".format(' '.join(ffcommand)))
     child = Popen(ffcommand, stdout=PIPE, stderr=PIPE)
     stdout, stderr = child.communicate()
     rc = child.returncode
+    logwrite.debug("CDR2SQL: ffmpeg output: {}\r\n{}".format(stdout, stderr))
     if rc != 0:
         # Something went wrong if we hit this
         if str(config.get('Notification', 'NOTIFICATION')) == 'true':
@@ -149,8 +175,7 @@ def removesilence(filepath, splitpoints):
     try:
         shutil.copy(tempoutfile, filepath)
     except (Exception) as e:
-        print "Error copying file", filepath
-        print "Error details:", str(e)
+        logwrite.error("CDR2SQL: Error writing file: {}, error details: {}".format(filepath, e))
         return False
     setpermissions = True
     try:
@@ -167,8 +192,7 @@ def removesilence(filepath, splitpoints):
         try:
             os.chown(filepath, uid, gid)
         except (Exception) as e:
-            print "Error setting permissions for file", filepath
-            print "Error details:", str(e)
+            logwrite.error("CDR2SQL: Error setting permissions for file: {}, error details: {}".format(filepath, e))
             return False
     # Cleanup temp files
     filestr = tempdir + '/' + filearr[0] + '*'
@@ -189,43 +213,56 @@ badsqlarr = []
 
 cdr_contents_base = []
 
+logwrite.debug('CDR2SQL: Beginning cdr2sql...')
+
 for file in filelist:
     try:
+        logwrite.debug('CDR2SQL: File {} being processed.'.format(file))
         with open(file) as ins:
             for line in ins:
                 cdr_contents_base.append(line)
     except (Exception) as e:
+        logwrite.error('CDR2SQL: Unable to import file {} for processing: {}.'.format(file, e))
         if str(config.get('Notification', 'NOTIFICATION')) == 'true':
+            logwrite.error('CDR2SQL: Sending error notification email.')
             subject = "!!!LOGGER - COULD NOT OPEN FILES!!!"
             message = "FATAL Exception caught during file import: " + str(e) + "\r\n\r\nCheck to make sure the cdr2sql program can access the import files."
             sendEmail(subject, message)
+        logwrite.error('CDR2SQL: Exiting...')
         print "FATAL Exception caught during file import:", e
         print "Aborting..."
         sys.exit(1)
 
 try:
+    logwrite.debug('CDR2SQL: Connecting to database {}'.format(config.get('CDR-Database', 'LOGGERDB')))
     con = mdb.connect(str(config.get('CDR-Database', 'LOGGERDBSERVER')), str(config.get('CDR-Database', 'LOGGERDBUSER')), str(config.get('CDR-Database', 'LOGGERDBPASS')), str(config.get('CDR-Database', 'LOGGERDB')))
     cur = con.cursor()
 except (Exception) as e:
+    logwrite.error('CDR2SQL: Could not connect to database {}, error: {}'.format(config.get('CDR-Database', 'LOGGERDB'), e))
     if str(config.get('Notification', 'NOTIFICATION')) == 'true':
             subject = "!!!LOGGER - COULD NOT CONNECT TO DATABASE!!!"
             message = "FATAL Exception caught during database connection: " + str(e) + "\r\n\r\nCheck to make sure the cdr2sql program can access the database."
             sendEmail(subject, message)
     print "Unable to establish connection to database:", e
     print "Aborting..."
+    logwrite.error('CDR2SQL: Exiting...')
     sys.exit(1)
 
 for item in cdr_contents_base:
     items = item.split(";;;")
     sql = "INSERT INTO " + str(config.get('CDR-Database', 'LOGGERDBTABLE')) + " " + str(items[0]) + ';' 
     if ((str(config.get('Options', 'REMOVEHOLDSILENCE')) == 'true') and (str(items[1]) == '1')):
+        logwrite.error('CDR2SQL: Paused recording encountered, removing silence.')
         removesilence(items[2], items[3])
     try:
+        logwrite.debug('CDR2SQL: Execute SQL: {}'.format(sql))
         cur.execute(sql)
     except (Exception) as e:
+        logwrite.error('CDR2SQL: Unable to execute SQL: {}'.format(e))
         print "Bad SQL:", sql
         print "SQL error:", e
         print "Adding to bad SQL file..."
+        logwrite.error('CDR2SQL: Adding to bad SQL file {}'.format(badsqlfile))
         badsqlarr.append(str(item))
         badsql = True
         with open (badsqlfile, "a") as f:
