@@ -253,11 +253,12 @@ def removesilence(filepath, splitpoints):
         concatfiles = []
         for idx in range(len(splits)):
             if splits[idx][0] == "START":
+                tempnum = "{0:03d}".format(idx)
                 tmpfilename = os.path.join(
                     tempdir,
-                    "{1}{0:03d}.mp3".format(
+                    "{}{}.mp3".format(
                         filearr[0],
-                        idx
+                        tempnum
                         )
                     )
                 concatfiles.append(tmpfilename)
