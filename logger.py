@@ -71,7 +71,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                         data
                         )
                     )
-                cleandata = data.strip()
+                cleandata = data.decode('utf-8').strip()
                 # Send what we received off to be processed
                 response = self.RequestHandler(cleandata)
                 self.request.send(response)
