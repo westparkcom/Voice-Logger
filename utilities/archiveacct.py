@@ -17,7 +17,7 @@ from datetime import datetime
 import glob
 try:
     import ConfigParser
-except ImportError
+except ImportError:
     import configparser as ConfigParser
 try:
     import pymysql
