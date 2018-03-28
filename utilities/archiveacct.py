@@ -27,6 +27,12 @@ except ImportError:
 import MySQLdb as mdb
 from time import sleep
 from tqdm import tqdm
+# This was a messy, stupid oversight on the Python developer's part
+try:
+    import __builtin__
+    input = getattr(__builtin__, 'raw_input')
+except (ImportError, AttributeError):
+    pass
 
 def main():
     # Double verify we actually want to do this
@@ -47,10 +53,6 @@ def main():
                 )
             )
     print("")
-    try:
-        input = raw_input
-    except NameError:
-        pass
     confirm1 = input(
         "Are you sure you want to archive these accounts? (Y/n): "
         )
