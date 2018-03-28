@@ -255,7 +255,7 @@ def removesilence(filepath, splitpoints):
             if splits[idx][0] == "START":
                 tmpfilename = os.path.join(
                     tempdir,
-                    "{}{0:03d}.mp3".format(
+                    "{1}{0:03d}.mp3".format(
                         filearr[0],
                         idx
                         )
