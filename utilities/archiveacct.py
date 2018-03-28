@@ -47,7 +47,11 @@ def main():
                 )
             )
     print("")
-    confirm1 = raw_input(
+    try:
+        input = raw_input
+    except NameError:
+        pass
+    confirm1 = input(
         "Are you sure you want to archive these accounts? (Y/n): "
         )
     if not (confirm1 == "Y" or confirm1 == "y"):
@@ -55,7 +59,7 @@ def main():
         return 0
 
     print("")
-    confirm2 = raw_input(
+    confirm2 = input(
         "Are you ABSOLUTELY sure you want to archive these accounts? (Y/n): "
         )
     if not (confirm2 == "Y" or confirm2 == "y"):
