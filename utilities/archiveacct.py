@@ -15,7 +15,15 @@ import sys
 import shutil
 from datetime import datetime
 import glob
-import ConfigParser
+try:
+    import ConfigParser
+except ImportError
+    import configparser as ConfigParser
+try:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+except ImportError:
+    pass
 import MySQLdb as mdb
 from time import sleep
 from tqdm import tqdm

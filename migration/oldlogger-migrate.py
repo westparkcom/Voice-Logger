@@ -22,6 +22,9 @@ from __future__ import print_function
 #       instances of the script running simultaneously for      #
 #       many different months - one instance per core optimal   #
 #                                                               #
+# NOTE: THIS MIGRATION TOOL IS EXPERIMENTAL AND MAY NOT WORK    #
+#       IT HAS ALSO NOT BEEN TESTED AFTER PYTHON 3 REFACTOR     #
+#                                                               #
 # Usage: logger-migrate.py --start=YYYY/MM/DD --end=YYYY/MM/DD  #
 #                                                               #
 # Process: All records for the date range specified will be     #
