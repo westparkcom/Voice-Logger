@@ -68,12 +68,12 @@ class listenerService(SocketServer.BaseRequestHandler):
                 logwrite.debug(
                     "{}: Received data: {}".format(
                         threading.current_thread().ident,
-                        data
+                        data.decode('utf-8')
                         )
                     )
                 cleandata = data.decode('utf-8').strip()
                 # Send what we received off to be processed
-                response = self.RequestHandler(cleandata)
+                response = bytes(self.RequestHandler(cleandata))
                 self.request.send(response)
             logwrite.info(
                 "{}: Client {}:{} disconnected".format(
