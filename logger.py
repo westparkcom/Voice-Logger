@@ -18,7 +18,10 @@ import time
 import sys
 import socket
 import os
-import ConfigParser
+try:
+    import ConfigParser
+except ImportError:
+    import configparser
 import logging
 import logging.config
 import random
