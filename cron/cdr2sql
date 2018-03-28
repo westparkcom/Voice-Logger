@@ -12,8 +12,16 @@ import pwd
 import grp
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import ConfigParser
+try:
+    import ConfigParser
+except ImportError:
+        import configparser as ConfigParser
 from subprocess import Popen, PIPE
+try:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+except ImportError:
+    pass
 import MySQLdb as mdb
 import taglib
 import shutil
