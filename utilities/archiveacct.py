@@ -215,7 +215,7 @@ def main():
                     )
                 # Kill the record in the DB
                 cur.execute(sql)
-                sqlf["{}".format(row[2])].write(
+                sqlf[str(row[2])].write(
                     "{}\n".format(
                         archsql
                         )
@@ -230,7 +230,7 @@ def main():
                         )
                     )
                 print("Adding bad SQL to file...")
-                errf["{}".format(row[2])].write(
+                errf[str(row[2])].write(
                     "{}\n".format(
                         sql
                         )
@@ -256,7 +256,7 @@ def main():
                         )
                     )
                 print("Adding to NoFile.lis...")
-                nof[row[2]].write(
+                nof[str(row[2])].write(
                     "{}\n".format(
                         sourcePath
                         )
