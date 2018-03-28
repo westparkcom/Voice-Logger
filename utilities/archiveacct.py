@@ -230,7 +230,7 @@ def main():
                         )
                     )
                 print("Adding bad SQL to file...")
-                errf["{}".format(row[1])].write(
+                errf["{}".format(row[2])].write(
                     "{}\n".format(
                         sql
                         )
