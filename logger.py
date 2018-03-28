@@ -8,7 +8,10 @@ from __future__ import print_function
 # See the file LICENSE.md for details                           #
 #                                                               #
 #################################################################
-import SocketServer
+try:
+    import SocketServer
+except ImportError:
+    import socketserver
 import threading
 from datetime import date, datetime
 import time
