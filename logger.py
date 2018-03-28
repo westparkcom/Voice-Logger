@@ -11,7 +11,7 @@ from __future__ import print_function
 try:
     import SocketServer
 except ImportError:
-    import socketserver
+    import socketserver as SocketServer
 import threading
 from datetime import date, datetime
 import time
@@ -21,7 +21,7 @@ import os
 try:
     import ConfigParser
 except ImportError:
-    import configparser
+    import configparser as ConfigParser
 import logging
 import logging.config
 import random
