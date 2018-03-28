@@ -116,7 +116,7 @@ def main():
                     ),
                     'a'
                 )
-            errf[str(acct)] = open(
+            sqlf[str(acct)] = open(
                 os.path.join(
                     workingpath,
                     "SQLRestore.sql"
