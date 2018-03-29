@@ -20,15 +20,19 @@ Run the following commands to install prerequisite packages:
 
 `apt-get remove ffmpeg`
 
-`apt-get install git python-autopep8 python-mysqldb python-ESL mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout python-pip python-dev freetds-dev ntpdate libtag1-dev`
+`apt-get install git swig python3-pip3 python3-dev mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout freetds-dev ntpdate libtag1-dev`
 
 Note that you'll need to set you MySQL root password. Don't forget it as you'll need it later!
 
-`pip install tqdm`
+`pip3 install python-esl`
 
-`pip install pymssql`
+`pip3 install pymysql`
 
-`pip install pytaglib`
+`pip3 install taglib`
+
+`pip3 install pymssql`
+
+`pip3 install tqdm`
 
 ## Get logger package
 
@@ -166,11 +170,11 @@ In order to convert recordings from the old logger we need to install FFMPEG. Un
 
 `cd ffmpeg`
 
-`wget http://ffmpeg.org/releases/ffmpeg-3.1.4.tar.bz2`
+`wget http://ffmpeg.org/releases/ffmpeg-3.4.2.tar.bz2`
 
-`tar xjf ffmpeg-3.1.4.tar.bz2`
+`tar xjf ffmpeg-3.4.2.tar.bz2`
 
-`cd ffmpeg-3.1.4`
+`cd ffmpeg-3.4.2`
 
 `./configure --enable-gpl --enable-postproc --enable-swscale --enable-avfilter --enable-libmp3lame --enable-libvorbis --enable-libtheora --enable-libx264 --enable-libspeex --enable-shared --enable-pthreads --enable-libopenjpeg --enable-libfaac --enable-nonfree`
 
