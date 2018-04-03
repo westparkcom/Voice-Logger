@@ -105,7 +105,8 @@ class listenerService(SocketServer.BaseRequestHandler):
                     "{}: Error: {}".format(
                         threading.current_thread(),
                         e
-                        )
+                        ),
+                        exc_info=True
                     )
             self.request.close()
             return
