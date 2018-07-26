@@ -15,7 +15,11 @@ from email.mime.multipart import MIMEMultipart
 try:
     import ConfigParser
 except ImportError:
-        import configparser as ConfigParser
+    import configparser as ConfigParser
+try:
+    import simplejson
+except ImportError:
+    import json
 from subprocess import Popen, PIPE
 try:
     import pymysql
@@ -135,19 +139,67 @@ def removesilence(filepath, splitpoints):
             '.txt'
             )
         )
+    
+    # find out the length of the mp3 recording
+    ffcommand = [
+        '/usr/local/bin/ffprobe',
+        '-hide_banner',
+        '-v',
+        'quiet',
+        '-print_format',
+        'json',
+        '-show_streams',
+        '{}'.format(filepath),
+        ]
+    logwrite.debug(
+        "CDR2SQL: ffprobe command: {}".format(
+            ' '.join(
+                ffcommand
+                )
+            )
+        )
+    child = Popen(
+        ffcommand,
+        stdout=PIPE,
+        stderr=PIPE
+        )
+    stdout, stderr = child.communicate()
+    rc = child.returncode
+    try:
+        mp3info = json.loads(
+            stdout
+        )
+        mp3length = float(mp3info['streams'][0]['duration'])
+    except Exception as e:
+        logwrite.debug(
+            "Unable to get mp3 duration info: {}".format(
+                e
+            )
+        )
+        mp3length = 9999.0
+
+
     splitlist = []
     for idx in range(len(splitarr)):
         if idx == 0:
-            splits.append(
-                splitarr[idx].split(
-                    ">>"
+            if splitarr[idx].split(">>")[1] <= mp3length:
+                splits.append(
+                    splitarr[idx].split(
+                        ">>"
+                        )
                     )
-                )
-            logwrite.debug(
-                "CDR2SQL: Split point added: {}".format(
-                    splitarr[idx]
+                logwrite.debug(
+                    "CDR2SQL: Split point added: {}".format(
+                        splitarr[idx]
+                        )
                     )
-                )
+            else:
+                logwrite.error(
+                    "CDR2SQL: Length of split point extends beyond length of file, ignoring. Split point: {}. Length of file: {}".format(
+                        splitarr[idx],
+                        mp3length
+                        )
+                    )
         elif (idx > 0):
             if splitarr[idx-1].split(">>")[0] == splitarr[idx].split(">>")[0]:
                 # If this matches we've encountered a double-command, we'll ignore the second command
@@ -158,21 +210,29 @@ def removesilence(filepath, splitpoints):
                     )
                 pass
             else:
-                splits.append(
-                    splitarr[idx].split(
-                        ">>"
+                if splitarr[idx].split(">>")[1] <= mp3length:
+                    splits.append(
+                        splitarr[idx].split(
+                            ">>"
+                            )
                         )
-                    )
-                splitlist.append(
-                    splitarr[idx].split(
-                        ">>"
-                        )[1].strip()
-                    )
-                logwrite.debug(
-                    "CDR2SQL: Split point added: {}".format(
-                        splitarr[idx]
+                    splitlist.append(
+                        splitarr[idx].split(
+                            ">>"
+                            )[1].strip()
                         )
-                    )
+                    logwrite.debug(
+                        "CDR2SQL: Split point added: {}".format(
+                            splitarr[idx]
+                            )
+                        )
+                else:
+                    logwrite.error(
+                        "CDR2SQL: Length of split point extends beyond length of file, ignoring. Split point: {}. Length of file: {}".format(
+                            splitarr[idx],
+                            mp3length
+                            )
+                        )
     # Split out the files
     ffcommand = [
         str(config.get('Options', 'FFMPEGLOCATION')),
