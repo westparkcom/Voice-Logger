@@ -101,12 +101,10 @@ class listenerService(SocketServer.BaseRequestHandler):
                         )
                     )
             else:
-                logwrite.error(
-                    "{}: Error: {}".format(
+                logwrite.exception(
+                    "{}: Error:".format(
                         threading.current_thread(),
-                        e
-                        ),
-                        exc_info=True
+                        )
                     )
             self.request.close()
             return
@@ -518,10 +516,9 @@ class listenerService(SocketServer.BaseRequestHandler):
                             )
                         )
                 else:
-                    logwrite.error(
-                        "{}: Unhandled Exception encountered: {}".format(
+                    logwrite.exception(
+                        "{}: Unhandled Exception encountered:".format(
                             threading.current_thread().ident,
-                            e
                             )
                         )
                 fscon.disconnect()
@@ -772,10 +769,9 @@ class listenerService(SocketServer.BaseRequestHandler):
                             )
                         )
                 else:
-                    logwrite.error(
-                        "{}: Unhandled Exception encountered: {}".format(
-                            threading.current_thread().ident,
-                            e
+                    logwrite.exception(
+                        "{}: Unhandled Exception encountered:".format(
+                            threading.current_thread().ident
                             )
                         )
                 fscon.disconnect()
