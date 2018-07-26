@@ -1016,20 +1016,20 @@ class listenerService(SocketServer.BaseRequestHandler):
                     CallData['agentID']
                     )
                 )
-            if callCheck[0] is None:
-                if callCheck[0] == True:
-                    logwrite.debug(
-                        "{}: Current call matched for agent ID {}! resuming recording...".format(
-                            threading.current_thread().ident,
-                            CallData['agentID']
-                            )
+            #if callCheck[0] is not None:
+            if callCheck[0] == True:
+                logwrite.debug(
+                    "{}: Current call matched for agent ID {}! resuming recording...".format(
+                        threading.current_thread().ident,
+                        CallData['agentID']
                         )
-                    return [
-                        True, 
-                        "OK({})\r\n".format(
-                            callCheck[1]
-                            )
-                        ]
+                    )
+                return [
+                    True, 
+                    "OK({})\r\n".format(
+                        callCheck[1]
+                        )
+                    ]
             else:
                 logwrite.debug(
                     "{}: Couldn't find current call for agent ID {}, not enough data to make new recording, returning error...".format(
