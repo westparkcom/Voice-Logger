@@ -170,6 +170,11 @@ def removesilence(filepath, splitpoints):
             stdout
         )
         mp3length = float(mp3info['streams'][0]['duration'])
+        logwrite.debug(
+            "Estimated recording duration: {}".format(
+                mp3length
+            )
+        )
     except Exception as e:
         logwrite.debug(
             "Unable to get mp3 duration info: {}".format(
