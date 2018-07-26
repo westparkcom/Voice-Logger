@@ -187,7 +187,7 @@ def removesilence(filepath, splitpoints):
     splitlist = []
     for idx in range(len(splitarr)):
         if idx == 0:
-            if splitarr[idx].split(">>")[1] <= mp3length:
+            if float(splitarr[idx].split(">>")[1]) <= mp3length:
                 splits.append(
                     splitarr[idx].split(
                         ">>"
@@ -215,7 +215,7 @@ def removesilence(filepath, splitpoints):
                     )
                 pass
             else:
-                if splitarr[idx].split(">>")[1] <= mp3length:
+                if float(splitarr[idx].split(">>")[1]) <= mp3length:
                     splits.append(
                         splitarr[idx].split(
                             ">>"
