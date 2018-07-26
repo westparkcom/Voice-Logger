@@ -760,6 +760,10 @@ class listenerService(SocketServer.BaseRequestHandler):
                             True,
                             filenamestr
                             ]
+                return [
+                    False,
+                    False
+                ]
             except (Exception) as e:
                 if "{}".format(e) == "'rows'":
                     logwrite.debug(
@@ -1016,7 +1020,6 @@ class listenerService(SocketServer.BaseRequestHandler):
                     CallData['agentID']
                     )
                 )
-            #if callCheck[0] is not None:
             if callCheck[0] == True:
                 logwrite.debug(
                     "{}: Current call matched for agent ID {}! resuming recording...".format(
