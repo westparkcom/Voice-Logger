@@ -27,5 +27,6 @@ session:setVariable("RECORD_COMMENT", "DNIS: " .. call_dnis .. " | ANI: " .. cal
 session:setVariable("RECORD_STEREO", "false")
 session:setVariable("RECORD_HANGUP_ON_ERROR", "true")
 session:setVariable("record_waste_resources", "true")
+session:setVariable("playback_terminators", "none")
 session:execute("record_session", recording_file)
-session:execute("playback", "silence_stream://-1,1400")
+session:execute("playback", "silence_stream://-1")
