@@ -20,15 +20,17 @@ Run the following commands to install prerequisite packages:
 
 `apt-get remove ffmpeg`
 
-`apt-get install git swig python3-pip python3-dev mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout freetds-dev ntpdate libtag1-dev`
+`apt-get install git swig python3-pip python3-dev mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout freetds-dev ntpdate libtag1-dev libssl-dev libffi-dev`
 
 Note that you'll need to set you MySQL root password. Don't forget it as you'll need it later!
+
+`pip3 install --upgrade setuptools`
 
 `pip3 install python-esl`
 
 `pip3 install pymysql`
 
-`pip3 install taglib`
+`pip3 install pytaglib`
 
 `pip3 install pymssql`
 

@@ -145,8 +145,6 @@ def converttomp3(filepath):
         '-hide_banner',
         '-loglevel',
         'error',
-        '-safe',
-        '0',
         '-i',
         filepath,
         '-codec:a',
@@ -374,7 +372,9 @@ def removesilence(filepath, splitpoints):
     rc = child.returncode
     try:
         wavinfo = json.loads(
-            stdout
+            str(
+                stdout
+                )
         )
         wavlength = float(wavinfo['streams'][0]['duration'])
         logwrite.debug(
