@@ -288,11 +288,19 @@ def converttomp3(filepath):
                         0,
                         0
                         )
+                    os.chown(
+                        filepath,
+                        0,
+                        0
+                        )
                     os.remove(
                         os.path.join(
                             newtempfile[0],
                             newtempfile[1]
                             )
+                        )
+                    os.remove(
+                        filepath
                         )
                 except:
                     pass
@@ -311,12 +319,20 @@ def converttomp3(filepath):
                 0,
                 0
                 )
+            os.chown(
+                filepath,
+                0,
+                0
+                )
             os.remove(
                 os.path.join(
                     newtempfile[0],
                     newtempfile[1]
                     )
             )
+            os.remove(
+                filepath
+                )
         except:
             pass
         return str(
