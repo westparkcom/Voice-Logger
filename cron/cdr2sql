@@ -101,6 +101,213 @@ def sendEmail(subj, mesg):
     server.quit()
 
 
+def converttomp3(filepath):
+    tempdir = "{}".format(
+        config.get(
+            'Options',
+            'TEMPDIRECTORY'
+            )
+        )
+    logwrite.debug(
+        'CDR2SQL: Converting {} to mp3 format'.format(
+            filepath
+            )
+        )
+    filename = os.path.split(
+        os.path.abspath(
+            filepath
+            )
+        )[1]
+    filefolder = os.path.split(
+        os.path.abspath(
+            filepath
+            )
+        )[0]
+    filearr = os.path.splitext(
+        filename
+        )
+    newtempfile = [
+        tempdir,
+        '{}.{}'.format(
+            filearr[0],
+            'mp3'
+            )
+        ]
+    newfile = [
+        filefolder,
+        '{}.{}'.format(
+            filearr[0],
+            'mp3'
+            )
+        ]
+    ffcommand = [
+        config.get('Options', 'FFMPEGLOCATION'),
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-safe',
+        '0',
+        '-i',
+        filepath,
+        '-codec:a',
+        'libmp3lame',
+        '-b:a',
+        '16k',
+        '-map_metadata',
+        "{}".format(
+            os.path.join(
+                newtempfile
+                )
+            )
+        ]
+    child = Popen(
+        ffcommand,
+        stdout=PIPE,
+        stderr=PIPE
+        )
+    stdout, stderr = child.communicate()
+    rc = child.returncode
+    if rc != 0:
+        logwrite.error(
+            "Couldn't convert file to MP3: {}".format(
+                stderr
+            )
+        )
+        return filepath
+    else:
+        origtag = taglib.File(
+            filepath
+            )
+        origmeta = origtag.tags
+        newtag = taglib.File(
+            os.path.join(
+                newtempfile
+                )
+            )
+        newtag.tags = origmeta
+        newtag.save()
+        try:
+            shutil.copy(
+                os.path.join(
+                    newtempfile
+                    ),
+                os.path.join(
+                    newfile
+                    )
+                )
+        except (Exception) as e:
+            logwrite.error(
+                "CDR2SQL: Error writing file: {}, error details: {}".format(
+                    filepath,
+                    e
+                    )
+                )
+            try:
+                os.chown(
+                    os.path.join(
+                        newtempfile
+                        ),
+                    0,
+                    0
+                )
+                os.remove(
+                    os.path.join(
+                        newtempfile
+                        )
+                )
+            except:
+                pass
+            return filepath
+        setpermissions = True
+        fsuid = config.get(
+            'FreeSWITCH',
+            'FSUID'
+            )
+        fsgid = config.get(
+            'FreeSWITCH',
+            'FSGID'
+            )
+        try:
+            uid = pwd.getpwnam(
+                fsuid
+                ).pw_uid
+        except:
+            print(
+                "Warning: User {} not found. Skipping setting permissions".format(
+                    fsuid
+                    )
+                )
+            setpermissions = False
+        try:
+            gid = grp.getgrnam(
+                fsgid
+                ).gr_gid
+        except:
+            print(
+                "Warning: Group {} not found. Skipping setting permissions".format(
+                    fsgid
+                    )
+                )
+            setpermissions = False
+        if setpermissions:
+            try:
+                os.chown(
+                    os.path.join(
+                        newfile
+                        ),
+                    uid,
+                    gid
+                    )
+            except (Exception) as e:
+                logwrite.error(
+                    "CDR2SQL: Error setting permissions for file: {}, error details: {}".format(
+                        os.path.join(
+                            newfile
+                            ),
+                        e
+                        )
+                    )
+                try:
+                    os.chown(
+                        os.path.join(
+                            newtempfile
+                            ),
+                        0,
+                        0
+                        )
+                    os.remove(
+                        os.path.join(
+                            newtempfile
+                            )
+                        )
+                except:
+                    pass
+                return str(
+                    os.path.join(
+                        newfile
+                        )
+                    )
+        try:
+            os.chown(
+                os.path.join(
+                    newtempfile
+                    ),
+                0,
+                0
+                )
+            os.remove(
+                os.path.join(
+                    newtempfile
+                    )
+            )
+        except:
+            pass
+        return str(
+            os.path.join(
+                newfile
+            )
+        )
+
 def removesilence(filepath, splitpoints):
     tempdir = "{}".format(
         config.get(
@@ -122,14 +329,14 @@ def removesilence(filepath, splitpoints):
             filepath
             )
         )[1]
-    filearr = filename.split(
-        '.'
+    filearr = os.path.splitext(
+        filename
         )
     tempfilepattern = os.path.join(
         tempdir,
         "{}{}".format(
             filearr[0],
-            '%03d.mp3'
+            '%03d.wav'
             )
         )
     tempfilelist = os.path.join(
@@ -140,9 +347,9 @@ def removesilence(filepath, splitpoints):
             )
         )
     
-    # find out the length of the mp3 recording
+    # find out the length of the recording
     ffcommand = [
-        '/usr/local/bin/ffprobe',
+        config.get('Options', 'FFPROBELOCATION'),
         '-hide_banner',
         '-v',
         'quiet',
@@ -166,28 +373,28 @@ def removesilence(filepath, splitpoints):
     stdout, stderr = child.communicate()
     rc = child.returncode
     try:
-        mp3info = json.loads(
+        wavinfo = json.loads(
             stdout
         )
-        mp3length = float(mp3info['streams'][0]['duration'])
+        wavlength = float(wavinfo['streams'][0]['duration'])
         logwrite.debug(
             "Estimated recording duration: {}".format(
-                mp3length
+                wavlength
             )
         )
     except Exception as e:
         logwrite.debug(
-            "Unable to get mp3 duration info: {}".format(
+            "Unable to get wav duration info: {}".format(
                 e
             )
         )
-        mp3length = 9999.0
+        wavlength = 9999.0
 
 
     splitlist = []
     for idx in range(len(splitarr)):
         if idx == 0:
-            if float(splitarr[idx].split(">>")[1]) <= mp3length:
+            if float(splitarr[idx].split(">>")[1]) <= wavlength:
                 splits.append(
                     splitarr[idx].split(
                         ">>"
@@ -202,7 +409,7 @@ def removesilence(filepath, splitpoints):
                 logwrite.error(
                     "CDR2SQL: Length of split point extends beyond length of file, ignoring. Split point: {}. Length of file: {}".format(
                         splitarr[idx],
-                        mp3length
+                        wavlength
                         )
                     )
         elif (idx > 0):
@@ -215,7 +422,7 @@ def removesilence(filepath, splitpoints):
                     )
                 pass
             else:
-                if float(splitarr[idx].split(">>")[1]) <= mp3length:
+                if float(splitarr[idx].split(">>")[1]) <= wavlength:
                     splits.append(
                         splitarr[idx].split(
                             ">>"
@@ -235,7 +442,7 @@ def removesilence(filepath, splitpoints):
                     logwrite.error(
                         "CDR2SQL: Length of split point extends beyond length of file, ignoring. Split point: {}. Length of file: {}".format(
                             splitarr[idx],
-                            mp3length
+                            wavlength
                             )
                         )
     # Split out the files
@@ -283,9 +490,10 @@ def removesilence(filepath, splitpoints):
             )
         if "{}".format(config.get('Notification', 'NOTIFICATION')) == 'true':
             subject = "!!!LOGGER - COULD NOT REMOVE SILENCE FROM FILE!!!"
-            message = "Error removing silence from file: {}\r\n\r\nReceived the following error: {}".format(
+            message = "Error removing silence from file: {}\r\n\r\nReceived the following error: {}\r\n\r\nFFMPEG Command: {}".format(
                 filepath,
-                stderr
+                stderr,
+                ffcommand
                 )
             sendEmail(
                 subject,
@@ -321,7 +529,7 @@ def removesilence(filepath, splitpoints):
                 tempnum = "{0:03d}".format(idx)
                 tmpfilename = os.path.join(
                     tempdir,
-                    "{}{}.mp3".format(
+                    "{}{}.wav".format(
                         filearr[0],
                         tempnum
                         )
@@ -354,7 +562,7 @@ def removesilence(filepath, splitpoints):
         tempdir,
         "{}{}".format(
             filearr[0],
-            'temp.mp3'
+            'temp.wav'
             )
         )
 
@@ -370,9 +578,9 @@ def removesilence(filepath, splitpoints):
         '-i',
         tempfilelist,
         '-codec:a',
-        'libmp3lame',
-        '-b:a',
-        '16k',
+        'pcm_s16le',
+        '-ar',
+        '8000',
         '-map_metadata',
         '-1',
         tempoutfile
@@ -666,13 +874,24 @@ def main():
                 ),
             items[0]
             )
-        if ("{}".format(config.get('Options', 'REMOVEHOLDSILENCE')) == 'true') and ("{}".format(items[1]) == '1'):
+        if ("{}".format(config.get('Options', 'REMOVEHOLDSILENCE')) == 'true') and ("{}".format(items[1]) == '1') and ("{}".format(config.get('FreeSWITCH', 'FILEEXT')) == 'wav'):
             logwrite.error(
                 "CDR2SQL: Paused recording encountered, removing silence."
                 )
             removesilence(
                 items[2],
                 items[3]
+                )
+        elif ("{}".format(config.get('Options', 'REMOVEHOLDSILENCE')) == 'true') and ("{}".format(items[1]) == '1') and ("{}".format(config.get('FreeSWITCH', 'FILEEXT')) != 'wav'):
+            logwrite.error(
+                "CDR2SQL: Silence removal not supported for mp3 file extension, skipping."
+                )
+            newfile = converttomp3(
+                items[2]
+            )
+            sql = sql.replace(
+                items[2],
+                newfile
                 )
         try:
             logwrite.debug('CDR2SQL: Execute SQL: {}'.format(sql))
