@@ -151,7 +151,6 @@ def converttomp3(filepath):
         'libmp3lame',
         '-b:a',
         '16k',
-        '-map_metadata',
         "{}".format(
             os.path.join(
                 newtempfile[0],
