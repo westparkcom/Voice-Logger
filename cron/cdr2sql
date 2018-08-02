@@ -886,6 +886,7 @@ def main():
             logwrite.error(
                 "CDR2SQL: Silence removal not supported for mp3 file extension, skipping."
                 )
+        if ("{}".format(config.get('Options', 'CONVERTTOMP3')) == 'true') and ("{}".format(config.get('FreeSWITCH', 'FILEEXT')) == 'wav'):
             newfile = converttomp3(
                 items[2]
             )
