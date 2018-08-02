@@ -159,6 +159,13 @@ def converttomp3(filepath):
                 )
             )
         ]
+    logwrite.debug(
+        "CDR2SQL: ffmpeg MP3 convert command: {}".format(
+            ' '.join(
+                ffcommand
+                )
+            )
+        )
     child = Popen(
         ffcommand,
         stdout=PIPE,
