@@ -7,6 +7,7 @@ import os
 import sys
 import smtplib
 import datetime
+from time import sleep
 import glob
 import pwd
 import grp
@@ -31,6 +32,42 @@ import taglib
 import shutil
 import logging
 import logging.config
+
+def fchown(uid, gid, fname):
+    return True
+
+def fremove(fname):
+    count = 0
+    while count < 10:
+        try:
+            os.remove(
+                fname
+            )
+            return True
+        except (Exception) as e:
+            if count == 0:
+                logwrite.error(
+                    "CDR2SQL: Error deleting file {}: {}. Trying again...".format(
+                        fname,
+                        e
+                    )
+                )
+            elif count < 9:
+                logwrite.error(
+                    "CDR2SQL: Still couldn't delete file {}, trying again".format(
+                        fname
+                    )
+                )
+            else:
+                logwrite.error(
+                    "CDR2SQL: Couldn't delete file {}, giving up...".format(
+                        fname
+                    )
+                )
+                return False
+            sleep(.2)
+            count += 1
+    return False
 
 def sendEmail(subj, mesg):
     tolist = config.get(
@@ -221,21 +258,10 @@ def converttomp3(filepath):
                 )
             except:
                 pass
-            try:
-                os.remove(
-                    os.path.join(
-                        newtempfile[0],
-                        newtempfile[1]
-                        )
-                )
-            except (Exception) as e:
-                logwrite.error(
-                    "CDR2SQL: Error deleting temporary file {}: {}".format(
-                        os.path.join(
-                            newtempfile[0],
-                            newtempfile[1]
-                            ),
-                        e
+            fremove(
+                os.path.join(
+                    newtempfile[0],
+                    newtempfile[1]
                     )
                 )
             return filepath
@@ -309,33 +335,14 @@ def converttomp3(filepath):
                         )
                 except:
                     pass
-                try:
-                    os.remove(
-                        os.path.join(
-                            newtempfile[0],
-                            newtempfile[1]
-                            )
-                        )
-                except:
-                    logwrite.error(
-                        "CDR2SQL: Unable to remove temporary file {}: {}".format(
-                            os.path.join(
-                                newtempfile[0],
-                                newtempfile[1]
-                            ),
-                            e
+                fremove(
+                    os.path.join(
+                        newtempfile[0],
+                        newtempfile[1]
                         )
                     )
-                try:
-                    os.remove(
-                        filepath
-                        )
-                except:
-                    logwrite.error(
-                        "CDR2SQL: Unable to remove original WAV file {}: {}".format(
-                            filepath,
-                            e
-                        )
+                fremove(
+                    filepath
                     )
                 return str(
                     os.path.join(
@@ -362,33 +369,15 @@ def converttomp3(filepath):
                 )
         except:
             pass
-        try:
-            os.remove(
-                os.path.join(
-                    newtempfile[0],
-                    newtempfile[1]
-                    )
-            )
-        except (Exception) as e:
-            logwrite.error(
-                "CDR2SQL: Unable to remove temporary file {}: {}".format(
-                    os.path.join(
-                        newtempfile[0],
-                        newtempfile[1]
-                    ),
-                    e
+
+        fremove(
+            os.path.join(
+                newtempfile[0],
+                newtempfile[1]
                 )
-            )
-        try:
-            os.remove(
-                filepath
-                )
-        except (Exception) as e:
-            logwrite.error(
-                "CDR2SQL: Unable to remove original WAV file {}: {}".format(
-                    filepath,
-                    e
-                )
+        )
+        fremove(
+            filepath
             )
         return str(
             os.path.join(
@@ -609,7 +598,7 @@ def removesilence(filepath, splitpoints):
                 0,
                 0
                 )
-            os.remove(
+            fremove(
                 files
                 )
         return False
@@ -743,7 +732,7 @@ def removesilence(filepath, splitpoints):
                 0,
                 0
                 )
-            os.remove(
+            fremove(
                 files
                 )
         return False
@@ -837,7 +826,7 @@ def removesilence(filepath, splitpoints):
             0,
             0
             )
-        os.remove(files)
+        fremove(files)
     return True
 
 def main():
@@ -1041,7 +1030,7 @@ def main():
             0,
             0
             )
-        os.remove(
+        fremove(
             file
             )
 
