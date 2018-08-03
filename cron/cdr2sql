@@ -37,30 +37,67 @@ def fchown(uid, gid, fname):
     return True
 
 def fremove(fname):
+    filename = os.path.abspath(
+        fname
+        )[1]
     count = 0
+    uidcommand = [
+        '/usr/bin/lsof',
+        '+D',
+        fname
+    ]
+    
     while count < 10:
         try:
+            shutil.move(
+                fname,
+                os.path.join(
+                    config.get(
+                        'Options',
+                        'TEMPDIRECTORY'
+                        ),
+                    "TEMPDEL-{}".format(
+                        filename
+                    )
+                )
+            )
             os.remove(
-                fname
+                os.path.join(
+                    config.get(
+                        'Options',
+                        'TEMPDIRECTORY'
+                        ),
+                    "TEMPDEL-{}".format(
+                        filename
+                    )
+                )
             )
             return True
         except (Exception) as e:
+            child = Popen(
+                uidcommand,
+                stdout=PIPE,
+                stderr=PIPE
+                )
+            stdout, stderr = child.communicate()
+            rc = child.returncode
             if count == 0:
                 logwrite.error(
-                    "CDR2SQL: Error deleting file {}: {}. Trying again...".format(
+                    "CDR2SQL: Error moving file for deletion {}: {}.\r\nFile appears to be blocked:{} Trying again...".format(
                         fname,
-                        e
+                        e,
+                        stdout
                     )
                 )
             elif count < 9:
                 logwrite.error(
-                    "CDR2SQL: Still couldn't delete file {}, trying again".format(
+                    "CDR2SQL: Still couldn't move file for deletion {}, trying again".format(
                         fname
                     )
                 )
             else:
                 logwrite.error(
-                    "CDR2SQL: Couldn't delete file {}, giving up...".format(
+                    "CDR2SQL: Couldn't move file for deletion {}, giving up...".format(
                         fname
                     )
                 )
