@@ -37,40 +37,16 @@ def fchown(uid, gid, fname):
     return True
 
 def fremove(fname):
-    filename = os.path.abspath(
-        fname
-        )[1]
     count = 0
     uidcommand = [
         '/usr/bin/lsof',
         '+D',
         fname
     ]
-    
     while count < 10:
         try:
-            shutil.move(
-                fname,
-                os.path.join(
-                    config.get(
-                        'Options',
-                        'TEMPDIRECTORY'
-                        ),
-                    "TEMPDEL-{}".format(
-                        filename
-                    )
-                )
-            )
             os.remove(
-                os.path.join(
-                    config.get(
-                        'Options',
-                        'TEMPDIRECTORY'
-                        ),
-                    "TEMPDEL-{}".format(
-                        filename
-                    )
-                )
+                fname
             )
             return True
         except (Exception) as e:
@@ -266,6 +242,8 @@ def converttomp3(filepath):
             )
         newtag.tags = origmeta
         newtag.save()
+        origtag.close()
+        newtag.close()
         try:
             shutil.copy(
                 os.path.join(
@@ -783,6 +761,8 @@ def removesilence(filepath, splitpoints):
         )
     newtag.tags = origmeta
     newtag.save()
+    origtag.close()
+    newtag.close()
     try:
         shutil.copy(
             tempoutfile,
