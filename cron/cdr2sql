@@ -219,14 +219,25 @@ def converttomp3(filepath):
                     0,
                     0
                 )
+            except:
+                pass
+            try:
                 os.remove(
                     os.path.join(
                         newtempfile[0],
                         newtempfile[1]
                         )
                 )
-            except:
-                pass
+            except (Exception) as e:
+                logwrite.error(
+                    "CDR2SQL: Error deleting temporary file {}: {}".format(
+                        os.path.join(
+                            newtempfile[0],
+                            newtempfile[1]
+                            ),
+                        e
+                    )
+                )
             return filepath
         setpermissions = True
         fsuid = config.get(
@@ -288,22 +299,44 @@ def converttomp3(filepath):
                         0,
                         0
                         )
+                except:
+                    pass
+                try:
                     os.chown(
                         filepath,
                         0,
                         0
                         )
+                except:
+                    pass
+                try:
                     os.remove(
                         os.path.join(
                             newtempfile[0],
                             newtempfile[1]
                             )
                         )
+                except:
+                    logwrite.error(
+                        "CDR2SQL: Unable to remove temporary file {}: {}".format(
+                            os.path.join(
+                                newtempfile[0],
+                                newtempfile[1]
+                            ),
+                            e
+                        )
+                    )
+                try:
                     os.remove(
                         filepath
                         )
                 except:
-                    pass
+                    logwrite.error(
+                        "CDR2SQL: Unable to remove original WAV file {}: {}".format(
+                            filepath,
+                            e
+                        )
+                    )
                 return str(
                     os.path.join(
                         newfile[0],
@@ -319,22 +352,44 @@ def converttomp3(filepath):
                 0,
                 0
                 )
+        except:
+            pass
+        try:
             os.chown(
                 filepath,
                 0,
                 0
                 )
+        except:
+            pass
+        try:
             os.remove(
                 os.path.join(
                     newtempfile[0],
                     newtempfile[1]
                     )
             )
+        except (Exception) as e:
+            logwrite.error(
+                "CDR2SQL: Unable to remove temporary file {}: {}".format(
+                    os.path.join(
+                        newtempfile[0],
+                        newtempfile[1]
+                    ),
+                    e
+                )
+            )
+        try:
             os.remove(
                 filepath
                 )
         except:
-            pass
+            logwrite.error(
+                "CDR2SQL: Unable to remove original WAV file {}: {}".format(
+                    filepath,
+                    e
+                )
+            )
         return str(
             os.path.join(
                 newfile[0],
