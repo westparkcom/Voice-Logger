@@ -8,7 +8,7 @@ TCPTIMEOUT = 120
 # Where to store the recordings
 LOGGERDIR = /usr/share/freeswitch/sounds/logger
 # What file extension to use for the recordings
-FILEEXT = mp3
+FILEEXT = wav
 # Server FreeSWITCH is running on
 FSHOST = localhost
 # Port FreeSWITCH is running on
@@ -100,13 +100,17 @@ SMTPUSER = user
 SMTPPASS = pass
 
 [Options]
-# Remove silence from recordings when caller is put on hold or call is paused
+# Remove silence from recordings when caller is put on hold or call is paused. NOT SUPPORTED IF FILEEXT = MP3!!!
 REMOVEHOLDSILENCE = true
 # Temp directory location for processing silence removal
 TEMPDIRECTORY = /tmp
 # Insert a beep to mark pause/resume periods
 INSERTBEEPMARKER = true
 # Location of the beep marker file to use (needs to be EXACT format of the recordings, example 16kbps 8kHz mono MP3)
-BEEPMARKERFILE = /usr/share/freeswitch/sounds/beep.mp3
+BEEPMARKERFILE = /usr/share/freeswitch/sounds/beep.wav
 # FFMpeg Location
 FFMPEGLOCATION = /usr/local/bin/ffmpeg
+# FFProbe Location
+FFPROBELOCATION = /usr/local/bin/ffprobe
+# Convert WAV to MP3
+CONVERTTOMP3 = true

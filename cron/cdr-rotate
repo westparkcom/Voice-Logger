@@ -4,4 +4,4 @@ fs_cli -x 'cdr_csv rotate'
 fs_cli -x 'fsctl sync_clock_when_idle'
 sleep 3
 
-python /usr/local/bin/cdr2sql --config=/usr/local/etc/loggerconfig.ini --logconfig=/usr/local/etc/loggerlog.ini
+python3 /usr/local/bin/cdr2sql --config=/usr/local/etc/loggerconfig.ini --logconfig=/usr/local/etc/loggerlog.ini

@@ -1,6 +1,9 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+from __future__ import print_function
 #################################################################
 #                                                               #
-# Copyright (c) 2016 Westpark Communications, L.P.              #
+# Copyright (c) 2018 Westpark Communications, L.P.              #
 # Subject to the GNU Affero GPL license                         #
 # See the file LICENSE.md for details                           #
 #                                                               #
@@ -18,6 +21,9 @@
 #       run this script for a 1 month interval, with several    #
 #       instances of the script running simultaneously for      #
 #       many different months - one instance per core optimal   #
+#                                                               #
+# NOTE: THIS MIGRATION TOOL IS EXPERIMENTAL AND MAY NOT WORK    #
+#       IT HAS ALSO NOT BEEN TESTED AFTER PYTHON 3 REFACTOR     #
 #                                                               #
 # Usage: logger-migrate.py --start=YYYY/MM/DD --end=YYYY/MM/DD  #
 #                                                               #
@@ -109,74 +115,190 @@ try:
     startday = argsDict['--start']
     datetime.datetime.strptime(startday, '%Y/%m/%d')
 except:
-    print ""
-    print "Error: start date not specified or incorrect format."
-    print ""
-    print "Usage: python", sys.argv[0], "--start=2016/01/01 --end=2016/01/31"
+    print("")
+    print("Error: start date not specified or incorrect format.")
+    print("")
+    print("Usage: python {} --start=2016/01/01 --end=2016/01/31".format(sys.argv[0]))
     sys.exit(1)
 try:
     endday = argsDict['--end']
     datetime.datetime.strptime(endday, '%Y/%m/%d')
 except:
-    print ""
-    print "Error: end date not specified or incorrect format."
-    print ""
-    print "Usage: python", sys.argv[0], "--start=2016/01/01 --end=2016/01/31"
+    print("")
+    print("Error: end date not specified or incorrect format.")
+    print("")
+    print("Usage: python {} --start=2016/01/01 --end=2016/01/31".format(sys.argv[0]))
     sys.exit(1)
     
-notifysubj = "Migration complete for dates " + startday + " to " + endday
+notifysubj = "Migration complete for dates {} to {}".format(
+    startday,
+    endday
+    )
 
 
 try:
-    cdrfilename = cdrloc + "/Master.csv." + str(uuid.uuid4())
-    nofilename = cdrloc + "/NoFile.csv." + str(uuid.uuid4())
-    errorfilename = cdrloc + "/Errors.log." + str(uuid.uuid4())
-    f = open(cdrfilename, 'w')
-    nf = open(nofilename, 'w')
-    ef = open(errorfilename, 'w')
+    cdrfilename = os.path.join(
+        cdrloc,
+        "Master.csv.{}".format(
+            uuid.uuid4()
+            )
+        )
+    nofilename = os.path.join(
+        cdrloc,
+        "NoFile.csv.{}".format(
+            uuid.uuid4()
+            )
+        )
+    errorfilename = os.path.join(
+        cdrloc,
+        "Errors.log.{}".format(
+            uuid.uuid4()
+            )
+        )
+    f = open(
+        cdrfilename,
+        'w'
+        )
+    nf = open(
+        nofilename,
+        'w'
+        )
+    ef = open(
+        errorfilename,
+        'w'
+        )
 
 except (Exception) as e:
-    print "Can't open file, error:", e
+    print("Can't open file, error: {}".format(e))
     sys.exit(1)
 
-con = pymssql.connect(dbserver, dbusername, dbpassword, dbdatabase)
+con = pymssql.connect(
+    dbserver,
+    dbusername,
+    dbpassword,
+    dbdatabase
+    )
 cur = con.cursor()
-cur.execute("SELECT * FROM [CallLoggerStats] WHERE [LoggerDate] between '" + startday + " 00:00:00' and '" + endday + " 23:59:59'")
+cur.execute(
+    "SELECT * FROM [CallLoggerStats] WHERE [LoggerDate] between '{} 00:00:00' and '{} 23:59:59'".format(
+        startday,
+        endday
+        )
+    )
 rows = cur.fetchall()
 dirsdict = {}
 successful = 0
 unsuccessful = 0
 for row in tqdm(rows):
-    fileloc = row[8].split(stripstring,1)[1]
-    convertloc = sourceloc + "/" + fileloc.replace("\\", "/")
+    fileloc = row[8].split(
+        stripstring,
+        1
+        )[1]
+    convertloc = os.path.join(
+        sourceloc,
+        fileloc.replace(
+            "\\",
+            "/"
+            )
+        )
     fileloc = fileloc[:-3] + "mp3"
-    dircheckloc = destloc + "/" + fileloc.split("\\",1)[0]
+    dircheckloc = os.path.join(
+        destloc,
+        fileloc.split(
+            "\\",
+            1
+            )[0]
+        )
     if not dircheckloc in dirsdict:
         dirsdict[dircheckloc] = dircheckloc
     if not os.path.isdir(dircheckloc):
         try:
-            print "Creating directory", dircheckloc
+            print("Creating directory {}".format(dircheckloc))
             os.makedirs(dircheckloc)
         except (Exception) as e:
-            print "Error:", e
+            print("Error: {}".format(e))
             sys.exit(1)
-    fileloc = destloc + "/" + fileloc.replace("\\", "/")
+    fileloc = os.path.join(
+        destloc,
+        fileloc.replace(
+            "\\",
+            "/"
+            )
+        )
     if not os.path.isfile(fileloc):
-        ffcommand = ['/usr/local/bin/ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', convertloc, '-b:a', '16k', fileloc]
-        child = Popen(ffcommand, stdout=PIPE, stderr=PIPE)
+        ffcommand = [
+            '/usr/local/bin/ffmpeg',
+            '-hide_banner',
+            '-loglevel',
+            'error',
+            '-i',
+            convertloc,
+            '-b:a',
+            '16k',
+            fileloc
+            ]
+        child = Popen(
+            ffcommand,
+            stdout=PIPE,
+            stderr=PIPE
+            )
         stdout, stderr = child.communicate()
         rc = child.returncode
         if rc == 0:
-            f.write('(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);\n")
+            f.write(
+                "(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES ({}, '{}','{}, '{}', {}, '{}', '{}', '{}', '{}', {}, '{}', 0);\n".format(
+                    row[1],
+                    row[2],
+                    row[3],
+                    row[4],
+                    row[5],
+                    row[6],
+                    row[7],
+                    fileloc,
+                    row[0],
+                    row[10],
+                    uuid.uuid4()
+                    )
+                )
+
             successful = successful + 1
         else:
-            print "Something went wrong converting file", convertloc, "to", fileloc, ":"
-            print stderr
-            ef.write("Error converting file " + convertloc + ": " + stderr + "\n")
-            sqlout = '(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES (' + str(row[1]) + ',"' + row[2] + '","' + row[3] + '","' + row[4] + '","' + row[5] + '","' + row[6] + '","' + row[7] + '","' + fileloc + '","' + str(row[0]) + '",' + str(row[10]) + ',"' + str(uuid.uuid4()) + '"' + ",0);"
-            print "Here's the SQL so you can add it manually later if needed:"
-            nf.write(sqlout + "\n")
-            print sqlout
+            print(
+                "Something went wrong converting file {} to {}:\n{}".format(
+                    convertloc,
+                    fileloc,
+                    stderr
+                    )
+                )
+            ef.write(
+                "Error converting file {}: {}".format(
+                    convertloc,
+                    stderr
+                    )
+                )
+            sqlout = "(Station,ClientID,InboundFlag,DNIS,ANI,CSN,AgentLoginID,AudioFilePath,LoggerDate,AccessTime,UniqueID,Paused) VALUES ({}, '{}','{}, '{}', {}, '{}', '{}', '{}', '{}', {}, '{}', 0);\n".format(
+                    row[1],
+                    row[2],
+                    row[3],
+                    row[4],
+                    row[5],
+                    row[6],
+                    row[7],
+                    fileloc,
+                    row[0],
+                    row[10],
+                    uuid.uuid4()
+                    )
+            print(
+                "Here's the SQL so you can add it manually later if needed:\n{}".format(
+                    sqlout
+                    )
+                )
+            nf.write(
+                "{}\n".format(
+                    sqlout
+                    )
+                )
             unsuccessful = unsuccessful + 1
     row = cur.fetchone()
 f.close()
@@ -185,49 +307,94 @@ nf.close()
 con.close()
 
 try:
-    uid = pwd.getpwnam(fsuid).pw_uid
+    uid = pwd.getpwnam(
+        fsuid
+        ).pw_uid
 except:
-    print "Warning: User", fsuid, "not found. Skipping setting permissions"
+    print(
+        "Warning: User {} not found. Skipping setting permissions".format(
+            fsuid
+            )
+        )
     setpermissions = False
 try:
-    gid = grp.getgrnam(fsgid).gr_gid
+    gid = grp.getgrnam(
+        fsgid
+        ).gr_gid
 except:
-    print "Warning: Group", fsuid, "not found. Skipping setting permissions"
+    print(
+        "Warning: Group {} not found. Skipping setting permissions".format(
+            fsgid
+            )
+        )
     setpermissions = False
 
 if setpermissions == True:
     for key, value in dirsdict.items():
         for root, dirs, files in os.walk(value):
             for direc in dirs:
-                os.chown(direc, uid, gid)
+                os.chown(
+                    direc,
+                    uid,
+                    gid
+                    )
             for file in files:
-                fname = os.path.join(root, file)
-                os.chown(fname, uid, gid)
+                fname = os.path.join(
+                    root,
+                    file
+                    )
+                os.chown(
+                    fname,
+                    uid,
+                    gid
+                    )
 totalrecs = unsuccessful + successful 
 
-notifymesg = "Old Logger Migration complete for dates: " + startday + " to " + endday + "\r\nTotal records: " + str(totalrecs) + "\r\n\r\nSuccessful conversions: " + str(successful) + "\r\nUnsuccessful conversions: " + str(unsuccessful)
+notifymesg = """Old Logger Migration complete for dates: {} to {}
+Total records: {}
 
+Successful conversions: {}
+Unseccessful conversions: {}""".format(
+    startday,
+    endday,
+    totalrecs,
+    successful,
+    unsuccessful
+    )
 if mailnotify == True:
     msg = MIMEMultipart('alternative')
     msg['Subject'] = notifysubj
     msg['From'] = notifyfrom
     msg['To'] = ", ".join(notifyto)
-    body = MIMEText(notifymesg, 'plain')
+    body = MIMEText(
+        notifymesg,
+        'plain'
+        )
     msg.attach(body)
-    server = smtplib.SMTP(smtpserver, smtpport)
+    server = smtplib.SMTP(
+        smtpserver,
+        smtpport
+        )
     server.ehlo()
     if smtptls:
         try:
             server.starttls()
         except (Exception) as e:
-            print "Couldn't start TLS:", e
+            print("Couldn't start TLS: {}".format(e))
     if smtpauth:
         try:
-            server.login(smtpuser, smtppass)
+            server.login(
+                smtpuser,
+                smtppass
+                )
         except (Exception) as e:
-            print "Couldn't authenticate to SMTP server:", e
+            print("Couldn't authenticate to SMTP server: {}".format(e))
     server.set_debuglevel(0)
-    server.sendmail(notifyfrom, notifyto, msg.as_string())
+    server.sendmail(
+        notifyfrom,
+        notifyto,
+        msg.as_string()
+        )
     server.quit()
 else:
-    print notifymesg
+    print(notifymesg)
