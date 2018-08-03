@@ -383,7 +383,7 @@ def converttomp3(filepath):
             os.remove(
                 filepath
                 )
-        except:
+        except (Exception) as e:
             logwrite.error(
                 "CDR2SQL: Unable to remove original WAV file {}: {}".format(
                     filepath,
