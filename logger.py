@@ -23,7 +23,7 @@ try:
 except ImportError:
     import configparser as ConfigParser
 import logging
-import logging.config
+from logging.handlers import TimedRotatingFileHandler
 import random
 import ESL
 try:
@@ -1586,20 +1586,12 @@ if __name__ == "__main__":
             argsDict[paramname] = paramval
 
     try:
-        loggerLogConfigFile = argsDict['--logconfig']
-    except:
-        print("")
-        print("Error: log configuration file location not specified.")
-        print("")
-        print("Usage: python {} --config=/path/to/configfile/loggerconfig.ini --logconfig=/path/to/logconfigfile/loggerlog.ini".format(sys.argv[0]))
-        sys.exit(1)
-    try:
         loggerConfigFile = argsDict['--config']
     except:
         print("")
-        print("Error: log configuration file location not specified.")
+        print("Error: logger configuration file location not specified.")
         print("")
-        print("Usage: python {} --config=/path/to/configfile/loggerconfig.ini --logconfig=/path/to/logconfigfile/loggerlog.ini".format(sys.argv[0]))
+        print("Usage: python {} --config=/path/to/configfile/loggerconfig.ini".format(sys.argv[0]))
         sys.exit(1)
             
     # Global config
@@ -1609,11 +1601,61 @@ if __name__ == "__main__":
         )
 
     # Logging setup
-    logging.config.fileConfig(
-        loggerLogConfigFile
-        )
     logwrite = logging.getLogger(
-        'loggerLog'
+        "Rotating Log"
         )
+    # Set the log level
+    if config.get('Logging', 'LOGLEVEL') == 'DEBUG':
+        logwrite.setLevel(
+            logging.DEBUG
+        )
+    elif config.get('Logging', 'LOGLEVEL') == 'INFO':
+        logwrite.setLevel(
+            logging.INFO
+        )
+    elif config.get('Logging', 'LOGLEVEL') == 'WARNING':
+        logwrite.setLevel(
+            logging.WARNING
+        )
+    elif config.get('Logging', 'LOGLEVEL') == 'ERROR':
+        logwrite.setLevel(
+            logging.ERROR
+        )
+    elif config.get('Logging', 'LOGLEVEL') == 'CRITICAL':
+        logwrite.setLevel(
+            logging.CRITICAL
+        )
+    handler = TimedRotatingFileHandler(
+        config.get(
+            'Logging',
+            'LOGLOCATION'
+        ),
+        when='{}'.format(
+            config.get(
+                'Logging',
+                'ROTATEWHEN'
+            )
+        ),
+        interval = int(
+            config.get(
+                'Logging',
+                'ROTATEINTERVAL'
+            )
+        ),
+        backupCount = int(
+            config.get(
+                'Logging',
+                'ROTATEBACKUPCOUNT'
+            )
+        )
+    )
+    handler.setFormatter(
+        logging.Formatter(
+            '%(asctime)s:%(levelname)s: %(message)s'
+        )
+    )
+    logwrite.addHandler(
+        handler
+    )
     # Call main program
     sys.exit(main())

@@ -74,7 +74,16 @@ GATEWAY2 = ["equeue-2", 1]
 PARKNUMBER = 7800
 
 [Logging]
-LOGLEVEL = debug
+# Logging level. Can be: CRITICAL, ERROR, WARNING, INFO, DEBUG
+LOGLEVEL = DEBUG
+# Location of log file
+LOGLOCATION = /var/log/logger/logger.log
+# When to rotate log (D = Day, H = Hour, M = Minutes, S = Seconds)
+ROTATEWHEN = D
+# What interval to rotate log (X time(s) per ROTATEWHEN, for example 1 time per DAY)
+ROTATEINTERVAL = 1
+# How many rotated logs to keep
+ROTATEBACKUPCOUNT = 30
 
 [CDR-Database]
 # Host of database server
