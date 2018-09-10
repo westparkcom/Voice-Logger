@@ -118,8 +118,8 @@ INSERTBEEPMARKER = true
 # Location of the beep marker file to use (needs to be EXACT format of the recordings, example 16kbps 8kHz mono MP3)
 BEEPMARKERFILE = /usr/share/freeswitch/sounds/beep.wav
 # FFMpeg Location
-FFMPEGLOCATION = /usr/local/bin/ffmpeg
+FFMPEGLOCATION = /usr/bin/ffmpeg
 # FFProbe Location
-FFPROBELOCATION = /usr/local/bin/ffprobe
+FFPROBELOCATION = /usr/bin/ffprobe
 # Convert WAV to MP3
 CONVERTTOMP3 = true
