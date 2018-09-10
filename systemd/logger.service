@@ -2,7 +2,7 @@
 Description=WPC Logger System
 
 [Service]
-ExecStart=/usr/bin/python /usr/local/bin/logger.py --config=/usr/local/etc/loggerconfig.ini --logconfig=/usr/local/etc/loggerlog.ini
+ExecStart=/usr/bin/python /usr/local/bin/logger.py --config=/usr/local/etc/loggerconfig.ini
 ExecStop=PID=`/bin/ps aux | grep 'python /usr/local/bin/logger.py' | grep -v grep | awk '{print $2}'` ; /bin/kill -2 $PID
 
 [Install]
