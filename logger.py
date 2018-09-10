@@ -73,7 +73,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                     )
                 cleandata = data.decode('utf-8').strip()
                 # Send what we received off to be processed
-                response = bytes(self.RequestHandler(cleandata))
+                response = bytes(self.RequestHandler(cleandata), 'utf8')
                 self.request.send(response)
             logwrite.info(
                 "{}: Client {}:{} disconnected".format(
