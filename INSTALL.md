@@ -1,28 +1,28 @@
 # Installation
 
-The WPC-Logger is designed to run on Debian 8 and uses FreeSWITCH as a media engine.
+The WPC-Logger is designed to run on Debian 9 and uses FreeSWITCH 1.8 as the media engine.
 
 ## Prerequisites
 
 Run the following commands to install prerequisite packages:
 
-`wget -O - https://files.freeswitch.org/repo/deb/debian/freeswitch_archive_g0.pub | apt-key add -`
+`wget -qO - http://files.freeswitch.org/repo/deb/freeswitch-1.8/fsstretch-archive-keyring.gpg | apt-key add -`
 
-`echo "deb http://files.freeswitch.org/repo/deb/freeswitch-1.6/ jessie main" > /etc/apt/sources.list.d/freeswitch.list`
+`echo "deb http://files.freeswitch.org/repo/deb/freeswitch-1.8/ stretch main" > /etc/apt/sources.list.d/freeswitch.list`
 
-`echo -e "deb http://www.deb-multimedia.org jessie main non-free\ndeb-src http://www.deb-multimedia.org jessie main non-free" > /etc/apt/sources.list.d/multimedia.list`
+`echo -e "deb [ trusted=yes ] http://www.deb-multimedia.org stretch main non-free\ndeb-src [ trusted=yes ] http://www.deb-multimedia.org stretch main non-free" > /etc/apt/sources.list.d/multimedia.list`
 
-`apt-get update`
+`apt update`
 
-`apt-get install deb-multimedia-keyring`
+`apt install deb-multimedia-keyring`
 
-`apt-get update`
+`rm /etc/apt/sources.list.d/multimedia.list`
 
-`apt-get remove ffmpeg`
+`echo -e "deb http://www.deb-multimedia.org stretch main non-free\ndeb-src http://www.deb-multimedia.org stretch main non-free" > /etc/apt/sources.list.d/multimedia.list`
 
-`apt-get install git swig python3-pip python3-dev mysql-server winbind cifs-utils build-essential libmp3lame-dev libvorbis-dev libtheora-dev libspeex-dev yasm pkg-config libfaac-dev libopenjpeg-dev libx264-dev freeswitch-meta-all freeswitch-mod-shout freetds-dev ntpdate libtag1-dev libssl-dev libffi-dev`
+`apt update`
 
-Note that you'll need to set you MySQL root password. Don't forget it as you'll need it later!
+`apt install git swig python3-pip python3-dev mysql-server winbind cifs-utils build-essential freeswitch-meta-all freeswitch-mod-shout ntpdate ffmpeg libtag1-dev`
 
 `pip3 install --upgrade setuptools`
 
@@ -46,7 +46,7 @@ Clone the repo to you home folder (NOTE: if this repo is still private you'll ne
 
 `cd dev`
 
-`git clone git@github.com:westparkcom/Voice-Logger.git`
+`git clone https://github.com/westparkcom/Voice-Logger.git`
 
 ## Install logger components
 
@@ -57,8 +57,6 @@ We now need to copy all of the logger components in place
 `su`
 
 `cp logger.py /usr/local/bin`
-
-`cp loggerlog.ini.default /usr/local/etc/loggerlog.ini`
 
 `cp loggerconfig.ini.default /usr/local/etc/loggerconfig.ini`
 
@@ -88,7 +86,7 @@ Modify the file `freeswitch/equeue.xml.example` to point to the IP of you eQueue
 
 `cp freeswitch/cdr_csv.conf.xml /etc/freeswitch/autoload_configs`
 
-`cp sounds/beep.mp3 /usr/share/freeswitch/sounds`
+`cp sounds/beep.* /usr/share/freeswitch/sounds`
 
 Restart FreeSWITCH to initialize the changes:
 
@@ -161,27 +159,3 @@ Restart the following components:
 `service logger restart`
 
 `service cron restart`
-
-## Install FFMPEG
-
-In order to convert recordings from the old logger we need to install FFMPEG. Unfortunately a ready made package is not available so we will need to compile it. Run the following commands to compile and install:
-
-`cd ~`
-
-`mkdir ffmpeg`
-
-`cd ffmpeg`
-
-`wget http://ffmpeg.org/releases/ffmpeg-3.4.2.tar.bz2`
-
-`tar xjf ffmpeg-3.4.2.tar.bz2`
-
-`cd ffmpeg-3.4.2`
-
-`./configure --enable-gpl --enable-postproc --enable-swscale --enable-avfilter --enable-libmp3lame --enable-libvorbis --enable-libtheora --enable-libx264 --enable-libspeex --enable-shared --enable-pthreads --enable-libopenjpeg --enable-libfaac --enable-nonfree`
-
-`make`
-
-`make install`
-
-`ldconfig`
