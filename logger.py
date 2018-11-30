@@ -156,20 +156,20 @@ def getcallmetadata(agentID):
             {}
         ]
     try:
-        metadata = json.loads(
-            fscon.api(
-                "db",
-                "select/recordings/{}".format(
-                    agentID
-                )
+        jsonfile = fscon.api(
+            "db",
+            "select/recordings/{}".format(
+                agentID
             )
-        ).getBody()
+        ).getBody().strip()
         fscon.disconnect()
+        with open(jsonfile) as jfile:
+            metadata=json.load(jfile)
     except (Exception) as e:
-        # json loads failed because key doesn't exist
+        # json loads failed file doesn't exist
         return [
             False,
-            {}
+            {'error': e}
         ]
     return [
         True,
@@ -177,10 +177,17 @@ def getcallmetadata(agentID):
     ]
 
 def clearcallmetadata(agentID):
+    metadata = getcallmetadata(agentID)
     fscon = fsconnection()
     if not fscon.connected():
         return False
     result = fscon.api(
+        "db",
+        "select/recordings/{}".format(
+            agentID
+        )
+    ).getBody().strip()
+    fscon.api(
         "db",
         "delete/recordings/{}".format(
             agentID
@@ -189,7 +196,55 @@ def clearcallmetadata(agentID):
     fscon.disconnect()
     if result == '!err!':
         return False
-    return True
+    metadata['Completed'] = True
+    return dropjsonfile(
+        metadata,
+        result
+    )
+
+def setcallmetadata(agentID, metadict):
+    fscon = fsconnection()
+    if not fscon.connected():
+        return [
+            False,
+            'Unable to connect to FreeSWITCH'
+        ]
+    jsonfile = fscon.api(
+        'db',
+        'select/recordings/{}'.format(
+            agentID,
+        )
+    ).getBody().strip()
+    if os.path.exists(jsonfile):
+        outfile = jsonfile
+    else:
+        outfile = filenamegen(
+            False,
+            metadict['CSN'],
+            'json'
+        )
+    result = fscon.api(
+        'db',
+        'insert/recordings/{}/{}'.format(
+            agentID,
+            outfile
+        )
+    ).getBody().strip()
+    fscon.disconnect()
+    if result == '!err!': #TODO FIXME: ensure !err! is the appropriate error response
+        return [
+            False,
+            result
+        ]
+    else:
+        dropjsonfile(
+            metadict,
+            outfile
+        )
+        return [
+            True,
+            result
+        ]
 
 def checkvalidagent(agentID):
     # Query to see if agent is signed into the switch and has a UUID
@@ -320,14 +375,22 @@ def checkrecordingpath(dateobj):
         ]
 
 
-def filenamegen(CSN, fileext):
-    now = datetime.now()
-    pathgood, path = checkrecordingpath(now)
-    if not pathgood:
-        return [
-            False,
-            ''
-        ]
+def filenamegen(usedate, CSN, fileext):
+    if usedate:
+        now = datetime.now()
+        pathgood, path = checkrecordingpath(now)
+        if not pathgood:
+            return [
+                False,
+                ''
+            ]
+    else:
+        path = config.get(
+            config.get(
+                'FreeSWITCH',
+                'LOGGERDIR'
+            )
+        )
     recordname = "{}-{}.{}".format(
         now.strftime("%Y-%m-%d_%H%M%S_%f"),
         CSN,
@@ -341,8 +404,7 @@ def filenamegen(CSN, fileext):
         )
     ]
 
-def dropjsonfile(jsonmeta):
-    CSN = jsonmeta['CSN']
+def dropjsonfile(jsonmeta, filename):
     now = datetime.now()
     jsonmeta['AccessTime'] = int(
         round(
@@ -352,16 +414,9 @@ def dropjsonfile(jsonmeta):
             ).total_seconds()
         )
     )
-    success, filename = filenamegen(
-        CSN,
-        'json'
-    )
-
-    if not success:
-        return False
     try:
         with open(filename, 'w') as outfile:
-            json.dumps(
+            json.dump(
                 jsonmeta,
                 outfile,
                 separators=(',', ':')
@@ -712,36 +767,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             ) for param in params
         )
         return paramsDict
-    
-    def setcallmetadata(self, agentID, metadict):
-        metastring = json.dumps(
-            metadict,
-            separators=(',', ':')
-        )
-        fscon = fsconnection()
-        if not fscon.connected():
-            return [
-                False,
-                'Unable to connect to FreeSWITCH'
-            ]
-        result = fscon.api(
-            'db',
-            'insert/recordings/{}/{}'.format(
-                agentID,
-                metastring
-            )
-        ).getBody().strip()
-        fscon.disconnect()
-        if result == '!err!': #TODO FIXME: ensure !err! is the appropriate error response
-            return [
-                False,
-                result
-            ]
-        else:
-            return [
-                True,
-                result
-            ]
+
 
     def PauseResumeRecording(self, agentID, action):
         """ Pauses or resumes the recording in FreeSWITCH
@@ -811,7 +837,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 )
             )
             fscon.disconnect()
-            if fsresult == 'ERR': #TODO FIXME get the appropriate return value for failure to stop recording
+            if fsresult[0:3] == '-ERR': #TODO FIXME get the appropriate return value for failure to stop recording
                 logwrite.info(
                     "{}: No recordings to stop for agent ID: {}".format(
                         threading.current_thread().ident,
@@ -828,6 +854,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             ]
         elif action == 'unmask':
             fnamesuccess, newfile = filenamegen(
+                True,
                 metadata['CSN'],
                 'wav'
             )
@@ -848,7 +875,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 )
             )
             fscon.disconnect()
-            if fsresult == 'ERR': #TODO FIXME get the appropriate return value for failure to stop recording
+            if fsresult[0:3] == '-ERR': #TODO FIXME get the appropriate return value for failure to stop recording
                 logwrite.info(
                     "{}: Unable to start recording for agent ID {}: {}".format(
                         threading.current_thread().ident,
@@ -861,7 +888,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                     False,
                     'NOT RECORDING'
                 ]
-            setresult, seterr = self.setcallmetadata(
+            setresult, seterr = setcallmetadata(
                 agentID,
                 metadata
             )
@@ -948,7 +975,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 fsresult
             )
         )
-        if fsresult == 'ERR': #TODO FIXME get the appropriate return value for failure to stop recording
+        if fsresult[0:3] == '-ERR': #TODO FIXME get the appropriate return value for failure to stop recording
             logwrite.info(
                 "{}: No recordings to stop for agent ID: {}".format(
                     threading.current_thread().ident,
@@ -963,7 +990,6 @@ class listenerService(SocketServer.BaseRequestHandler):
                     agentID
                 )
             )
-        dropjsonfile(metadata)
         return [
             True,
             "OK"
@@ -1032,6 +1058,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 'NOT RECORDING'
             ]
         fnamesuccess, recording_file = filenamegen(
+            True,
             CallData['fldCSN'],
             'wav'
         )
@@ -1047,9 +1074,10 @@ class listenerService(SocketServer.BaseRequestHandler):
             'Paused': 0,
             'Recordings': [
                 recording_file
-            ]
+            ],
+            'Completed': False
         }
-        setresult, seterr = self.setcallmetadata(
+        setresult, seterr = setcallmetadata(
             CallData['agentID'],
             metadict
         )
