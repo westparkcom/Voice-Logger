@@ -148,33 +148,6 @@ def checkrecording(agentID):
             False
         ]
 
-def setcallmetadata(agentID, metadict):
-    metastring = json.dumps(
-        metadict,
-        separators=(',', ':')
-    )
-    fscon = fsconnection()
-    if not fscon.connected():
-        return False
-    result = fscon.api(
-        'db',
-        'insert/recordings/{}/{}'.format(
-            agentID,
-            metastring
-        )
-    ).getBody().strip()
-    logwrite.debug(
-        "Metadata set response: {}".format(
-            result
-        )
-    )
-    fscon.disconnect()
-    if result == '!err!': #TODO FIXME: ensure !err! is the appropriate error response
-        return False
-    else:
-        return True
-    
-
 def getcallmetadata(agentID):
     fscon = fsconnection()
     if not fscon.connected():
@@ -740,6 +713,32 @@ class listenerService(SocketServer.BaseRequestHandler):
         )
         return paramsDict
     
+    def setcallmetadata(self, agentID, metadict):
+        metastring = json.dumps(
+            metadict,
+            separators=(',', ':')
+        )
+        fscon = fsconnection()
+        if not fscon.connected():
+            return False
+        result = fscon.api(
+            'db',
+            'insert/recordings/{}/{}'.format(
+                agentID,
+                metastring
+            )
+        ).getBody().strip()
+        logwrite.debug(
+            "Metadata set response: {}".format(
+                result
+            )
+        )
+        fscon.disconnect()
+        if result == '!err!': #TODO FIXME: ensure !err! is the appropriate error response
+            return False
+        else:
+            return True
+
     def PauseResumeRecording(self, agentID, action):
         """ Pauses or resumes the recording in FreeSWITCH
         
@@ -858,7 +857,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                     False,
                     'NOT RECORDING'
                 ]
-            setresult = setcallmetadata(
+            setresult = self.setcallmetadata(
                 agentID,
                 metadata
             )
@@ -1045,7 +1044,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 recording_file
             ]
         }
-        setresult = setcallmetadata(
+        setresult = self.setcallmetadata(
             CallData['agentID'],
             metadict
         )
