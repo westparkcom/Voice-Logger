@@ -406,9 +406,11 @@ def dropjsonfile(jsonmeta, filename):
     now = datetime.now()
     jsonmeta['AccessTime'] = int(
         round(
-            now - datetime.strptime(
-                jsonmeta['LoggerDate'],
-                "%Y-%m-%d %H:%M:%S"
+            (
+                now - datetime.strptime(
+                    jsonmeta['LoggerDate'],
+                    "%Y-%m-%d %H:%M:%S"
+                )
             ).seconds
         )
     )
