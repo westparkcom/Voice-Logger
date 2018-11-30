@@ -25,7 +25,8 @@ except ImportError:
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import random
-import ESL
+import ESL #pip3 install python-ESL
+import psycopg2 #pip3 install pyscopg2
 try:
     import simplejson as json
 except ImportError:
@@ -33,8 +34,366 @@ except ImportError:
 import pwd
 import grp
 import smtplib
+import uuid
+import wave
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+def fsconnection():
+    """
+    Opens a new connection to the FreeSWITCH API
+    Returns the connection
+
+    Args:
+        None
+    """
+    fsconx = ESL.ESLconnection(
+        config.get(
+            'FreeSWITCH',
+            'FSHOST'
+            ),
+        config.get(
+            'FreeSWITCH',
+            'FSPORT'
+            ),
+        config.get(
+            'FreeSWITCH',
+            'FSPASSWORD'
+            )
+        )
+    return fsconx
+
+def dbquery(dbname, query):
+    """
+    Queries database using FreeSWITCH
+    Returns the result object
+
+    Args:
+        dbname: Name of the database to be queried
+        tablename: Name of the table to be queried
+        query: string of the SQL query
+    """
+    try:
+        conn = psycopg2.connect(
+            "host={}, dbname={}, user={}, password={}".format(
+                config.get(
+                    'ACD-Database',
+                    'ACDDB-SERVER'
+                ),
+                dbname,
+                config.get(
+                    'ACD-Database',
+                    'ACDDB-USER'
+                ),
+                config.get(
+                    'ACD-Database',
+                    'ACDDB-PASSWORD'
+                ),
+            )
+        )
+    except (Exception) as e:
+        logwrite.error(
+            "Unable to connect to database {}: {}".format(
+                dbname,
+                e
+            )
+        )
+        return [
+            False,
+            []
+        ]
+    try:
+        results = []
+        cur = conn.cursor()
+        cur.execute(query)
+        columns = [column[0] for column in cur.description]
+        for row in cur.fetchall():
+            results.append(
+                dict(
+                    zip(
+                        columns,
+                        row
+                    )
+                )
+            )
+        conn.close()
+        return [
+            True,
+            results
+        ]
+    except (Exception) as e:
+        logwrite.error(
+            "Unable to query database {}: {}".format(
+                dbname,
+                e
+            )
+        )
+        return [
+            False,
+            []
+        ]
+
+def checkrecording(agentID):
+    success, metadata = getcallmetadata(
+        agentID
+    )
+    if 'Station' in metadata:
+        return [
+            success,
+            True
+        ]
+    else:
+        return [
+            success,
+            False
+        ]
+
+def setcallmetadata(agentID, metadict):
+    metastring = json.dumps(
+        metadict,
+        separators=(',', ':')
+    )
+    fscon = fsconnection()
+    if not fscon.connected():
+        return False
+    result = fscon.api(
+        'db',
+        'insert/recordings/{}/{}'.format(
+            agentID,
+            metastring
+        )
+    ).getBody().strip()
+    fscon.disconnect()
+    if result == '!err!': #TODO FIXME: ensure !err! is the appropriate error response
+        return False
+    else:
+        return True
+    
+
+def getcallmetadata(agentID):
+    fscon = fsconnection()
+    if not fscon.connected():
+        return [
+            False,
+            {}
+        ]
+    try:
+        metadata = json.loads(
+            fscon.api(
+                "db",
+                "select/recordings/{}".format(
+                    agentID
+                )
+            )
+        ).getBody()
+        fscon.disconnect()
+    except (Exception) as e:
+        # json loads failed because key doesn't exist
+        return [
+            False,
+            {}
+        ]
+    return [
+        True,
+        metadata
+    ]
+
+def clearcallmetadata(agentID):
+    fscon = fsconnection()
+    if not fscon.connected():
+        return False
+    result = fscon.api(
+        "db",
+        "delete/recordings/{}".format(
+            agentID
+        )
+    ).getBody().strip()
+    fscon.disconnect()
+    if result == '!err!':
+        return False
+    return True
+
+def checkvalidagent(agentID):
+    # Query to see if agent is signed into the switch and has a UUID
+    success, rows = dbquery(
+        config.get(
+            'ACD-Database',
+            'ACDDB-DB'
+        ),
+        "SELECT * FROM agents WHERE agent = {}".format(
+            int(
+                agentID
+            )
+        )
+    )
+    # If we had a database problem, return False
+    if not success:
+        return [
+            False,
+            ''
+        ]
+    # If the agent ID isn't in the database, return False
+    if len(rows) == 0:
+        logwrite.warning(
+            "{}: Agent ID {} not found in ACD database".format(
+                threading.current_thread().ident,
+                agentID
+            )
+        )
+        return [
+            False,
+            ''
+        ]
+    agentinfo = rows[0]
+    # If the agent isn't connected to the switch, return False
+    if agentinfo['agent_uuid'] == '':
+        logwrite.warning(
+            "{}: Agent ID {} not currently connected to ACD switch".format(
+                threading.current_thread().ident,
+                agentID
+            )
+        )
+        return [
+            False,
+            ''
+        ]
+    return [
+        True,
+        agentinfo['agent_uuid']
+    ]
+
+def checkrecordingpath(dateobj):
+    folder = os.path.join(
+        config.get(
+            'FreeSWITCH',
+            'LOGGERDIR'
+        ),
+        dateobj.strftime(
+            "%Y-%m-%d"
+        )
+    )
+    if not os.path.isdir(folder):
+        try:
+            logwrite.debug(
+                "Folder {} does not exist, creating...".format(
+                    folder
+                )
+            )
+            os.makedirs(folder)
+            # Change ownership to FreeSWITCH user so FreeSWITCH can write
+            uid = pwd.getpwnam(
+                config.get(
+                    'FreeSWITCH',
+                    'FSUID'
+                    )
+            ).pw_uid
+            gid = grp.getgrnam(
+                config.get(
+                    'FreeSWITCH',
+                    'FSGID'
+                    )
+            ).gr_gid
+            os.chown(
+                folder,
+                uid,
+                gid
+            )
+            logwrite.debug(
+                "Folder {} created!".format(
+                    folder
+                )
+            )
+            return [
+                True,
+                folder
+            ]
+        except(Exception) as e:
+            logwrite.error(
+                "Unable to create folder {} : {}".format(
+                    folder,
+                    e
+                    )
+                )
+            return [
+                False,
+                ''
+            ]
+    else:
+        uid = pwd.getpwnam(
+            config.get(
+                'FreeSWITCH',
+                'FSUID'
+                )
+            ).pw_uid
+        gid = grp.getgrnam(
+            config.get(
+                'FreeSWITCH',
+                'FSGID'
+                )
+            ).gr_gid
+        os.chown(
+            folder,
+            uid,
+            gid
+        )
+        return True
+
+
+def filenamegen(CSN, fileext):
+    now = datetime.now()
+    pathgood, path = checkrecordingpath(now)
+    if not pathgood:
+        return [
+            False,
+            ''
+        ]
+    recordname = "{}-{}.{}".format(
+        now.strftime("%Y-%m-%d_%H%M%S_%f"),
+        CSN,
+        fileext
+    )
+    return [
+        True,
+        os.path.join(
+            path,
+            recordname
+        )
+    ]
+
+def dropjsonfile(jsonmeta):
+    CSN = jsonmeta['CSN']
+    now = datetime.now()
+    jsonmeta['AccessTime'] = int(
+        round(
+            now - datetime.strptime(
+                jsonmeta['LoggerDate'],
+                "%Y-%m-%d %H:%M:%S"
+            ).total_seconds()
+        )
+    )
+    success, filename = filenamegen(
+        CSN,
+        'json'
+    )
+
+    if not success:
+        return False
+    try:
+        with open(filename, 'w') as outfile:
+            json.dumps(
+                jsonmeta,
+                outfile,
+                separators=(',', ':')
+            )
+        return True
+    except (Exception) as e:
+        logwrite.error(
+            "Unable to write JSON file: {}".format(
+                e
+            )
+        )
+        return False
+
 
 class listenerService(SocketServer.BaseRequestHandler):
 
@@ -54,7 +413,6 @@ class listenerService(SocketServer.BaseRequestHandler):
             self: This class
         """
         try:
-            data = 'dummy'
             logwrite.info(
                 "{}: Client connected from address {}:{}".format(
                     threading.current_thread().ident,
@@ -62,8 +420,16 @@ class listenerService(SocketServer.BaseRequestHandler):
                     self.client_address[1]
                     )
                 )
+            data = 'dummy' # Needed to enter the while loop
             while len(data):
-                self.request.settimeout(int(config.get('Network', 'TCPTIMEOUT')))
+                self.request.settimeout(
+                    int(
+                        config.get(
+                            'Network',
+                            'TCPTIMEOUT'
+                        )
+                    )
+                )
                 data = self.request.recv(4096)
                 logwrite.debug(
                     "{}: Received data: {}".format(
@@ -73,7 +439,10 @@ class listenerService(SocketServer.BaseRequestHandler):
                     )
                 cleandata = data.decode('utf-8').strip()
                 # Send what we received off to be processed
-                response = bytes(self.RequestHandler(cleandata), 'utf8')
+                response = bytes(
+                    self.RequestHandler(cleandata),
+                    'utf8'
+                )
                 self.request.send(response)
             logwrite.info(
                 "{}: Client {}:{} disconnected".format(
@@ -113,9 +482,10 @@ class listenerService(SocketServer.BaseRequestHandler):
         """ Handles request from PInnacle and determines how to process them
         
         Takes the data we received in the handle function and determines
-        what we should do with it. There are currently 5 menthods we are
+        what we should do with it. There are currently 6 menthods we are
         aware of that PInnacle client sends:
             START(agentID,fldClientID=XXXX,fldDNIS=XXXXXXXXXX,fldANI=XXXXXXXXXX,fldCallType=X,fldCSN=XXXXXXX,fldAgentLoginID=XXX)
+            START(agentID)
             STOP(agentID)
             PAUSE(agentID)
             RESUME(agentID)
@@ -348,21 +718,19 @@ class listenerService(SocketServer.BaseRequestHandler):
             CallParameters: Raw string of the parameters (parenthesis included)
         """
         
-        # Remove outer parenthesis
+        # Check if outer parenthesis exist
         if not ((CallParameters[0] == '(') or (CallParameters[-1] == ')')):
             return {'BADDATA': True}
-        cleanParameters = CallParameters[1:-1]
-        parametersArr = cleanParameters.split(",")
-        i = 0
-        paramsDict = {}
-        for item in parametersArr:
-            #First parameter we receive isn't in K,V pair, so make a key...
-            if i == 0:
-                paramsDict['agentID'] = item
-            else:
-                name, var = item.partition("=")[::2]
-                paramsDict[name] = var.rstrip()
-            i = i + 1
+        paramsDict = dict(
+            param.split(
+                '=',
+                1
+            ) for param in (
+                'agentID={}'.format(
+                    CallParameters[1:-1]
+                )
+            )
+        )
         return paramsDict
     
     def PauseResumeRecording(self, agentID, action):
@@ -379,193 +747,130 @@ class listenerService(SocketServer.BaseRequestHandler):
             agentID: (string) The agentID to check against
             action: (string) 'mask' (pause) or 'unmask' (resume)
         """
-        
-        # Connect to FreeSWITCH
-        fscon = ESL.ESLconnection(
-            config.get(
-                'FreeSWITCH',
-                'FSHOST'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPORT'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPASSWORD'
-                )
-            )
-        if fscon.connected():
-            calls = fscon.api(
-                "show",
-                "channels as json"
-                )
-            CurrentCalls = json.loads(
-                calls.getBody()
-                )
-            j = 0
-            try:
-                for row in CurrentCalls['rows']:
-                    logwrite.debug(
-                        "{}: Checking UUID {} for agent ID {}...".format(
-                            threading.current_thread().ident,
-                            row['call_uuid'],
-                            agentID
-                            )
-                        )
-                    varstring = "{} agent_id".format(
-                        row['call_uuid']
-                        )
-                    pausearrstring = "{} pausearr".format(
-                        row['call_uuid']
-                        )
-                    startepochstring = "{} answered_time".format(
-                        row['call_uuid']
-                        )
-                    fsreturn = fscon.api(
-                        "uuid_getvar",
-                        varstring
-                        )
-                    fsreturn2 = fscon.api(
-                        "uuid_getvar",
-                        pausearrstring
-                        )
-                    fsreturn3 = fscon.api(
-                        "uuid_getvar",
-                        startepochstring
-                        )
-                    retAgentID = fsreturn.getBody().strip()
-                    retPauseArr = fsreturn2.getBody().strip()
-                    retStartEpoch = fsreturn3.getBody().strip()
-                    if str(retAgentID) == str(agentID):
-                        logwrite.warn(
-                            "{}: Call for agent ID {} found, {} recording for {}...".format(
-                                threading.current_thread().ident,
-                                agentID,
-                                action,
-                                row['call_uuid']
-                                )
-                            )
-                        filestring = "{} recording_file".format(
-                            row['call_uuid']
-                            )
-                        filereturn = fscon.api(
-                            "uuid_getvar",
-                            filestring
-                            )
-                        filename = filereturn.getBody().strip()
-                        output = fscon.api(
-                            "uuid_record",
-                            "{} {} {}".format(
-                                row['call_uuid'],
-                                action,
-                                filename
-                                )
-                            )
-                        logwrite.debug(
-                            "{}: FreeSWITCH output: {}".format(
-                                threading.current_thread().ident,
-                                output.getBody().strip()
-                                )
-                            )
-                        pausestring = "{} recording_paused 1".format(
-                            row['call_uuid']
-                            )
-                        fscon.api(
-                            "uuid_setvar",
-                            pausestring
-                            )
-                        logwrite.debug(
-                            "{}: Current epoch time: {}".format(
-                                threading.current_thread().ident,
-                                time.time()
-                                )
-                            )
-                        logwrite.debug(
-                            "{}: Call start epoch time: {}".format(
-                                threading.current_thread().ident,
-                                str(retStartEpoch)[:10]
-                                )
-                            )
-                        prtime = int(time.time()) - int(str(retStartEpoch)[:10])
-                        if action == "mask":
-                            prechar = "PAUSE>>"
-                        else:
-                            prechar = "START>>"
-                        pausetimes =  "{}|:{}{}".format(
-                            retPauseArr,
-                            prechar,
-                            prtime
-                            )
-                        pausetimestr = "{} pausearr {}".format(
-                            row['call_uuid'],
-                            pausetimes
-                        )
-                        fscon.api(
-                            "uuid_setvar",
-                            pausetimestr
-                            )
-                        j += 1
-                        time.sleep(.33)
-            except (Exception) as e:
-                if "{}".format(e) == "'rows'":
-                    logwrite.debug(
-                        "{}: No active recordings found for agent ID: {}".format(
-                            threading.current_thread().ident,
-                            agentID
-                            )
-                        )
-                else:
-                    logwrite.exception(
-                        "{}: Unhandled Exception encountered:".format(
-                            threading.current_thread().ident,
-                            )
-                        )
-                fscon.disconnect()
-                return [
-                    False,
-                    "NOT RECORDING"
-                    ]
-            fscon.disconnect()
-            if j == 0:
-                return [
-                    False,
-                    "NOT RECORDING"
-                    ]
-            else:
-                return [
-                    True,
-                    "OK"
-                    ]
-        else:
-            logwrite.error(
-                "{}: Unable to connect to FreeSWITCH to {} call, responding with ERROR".format(
-                    threading.current_thread().ident,
-                    action
-                    )
-                )
-            if config.get('Notification', 'NOTIFICATION') == 'true':
-                emailSubject = "Logger {} failure for agent ID: {}".format(
-                    action,
-                    agentID
-                    )
-                emailMessage = "Unable to connect to FreeSWITCH to {} recording for agent ID: {}.".format(
-                    action,
-                    agentID
-                    )
-                logwrite.debug(
-                    "{}: Sending alert email".format(
-                        threading.current_thread().ident
-                        )
-                    )
-                self.sendEmail(
-                    emailSubject,
-                    emailMessage
-                    )
+        validagent, agentUUID = checkvalidagent(
+            agentID
+        )
+        if not validagent:
             return [
                 False,
-                "INTERNAL ERROR"
+                'NOT RECORDING'
+            ]
+
+        # If we've gotten past the basics we can see if there's actually recording info in FreeSWITCH
+        reccheck, metadata = getcallmetadata(
+            agentID
+        )
+        if not reccheck:
+            logwrite.debug(
+                "{}: No active recordings found for agent ID: {}".format(
+                    threading.current_thread().ident,
+                    agentID
+                )
+            )
+            return [
+                False,
+                "NOT RECORDING"
+            ]
+        
+        # All tests passed, now let's stop/start recordings, ensure paused is set to 1, and push metadata
+        fscon = fsconnection()
+        if not fscon.connected():
+            logwrite.warning(
+                "{}: Unable to connect to FreeSWITCH to {} recording for agent ID: {}".format(
+                    threading.current_thread().ident,
+                    action,
+                    agentID
+                )
+            )
+            return [
+                False,
+                "NOT RECORDING"
+            ]
+        if action == 'mask':
+            fsresult = fscon.api(
+                'uuid_record',
+                '{} stop all'.format(
+                    agentUUID
+                )
+            ).getBody().strip()
+            logwrite.debug(
+                "{}: Result for 'uuid_record {} stop all: {}'".format(
+                    threading.current_thread().ident,
+                    agentUUID,
+                    fsresult
+                )
+            )
+            fscon.disconnect()
+            if fsresult == 'ERR': #TODO FIXME get the appropriate return value for failure to stop recording
+                logwrite.info(
+                    "{}: No recordings to stop for agent ID: {}".format(
+                        threading.current_thread().ident,
+                        agentID
+                    )
+                )
+                return [
+                    False,
+                    'NOT RECORDING'
                 ]
+            return [
+                True,
+                'OK'
+            ]
+        elif action == 'unmask':
+            newfile = filenamegen(
+                metadata['CSN'],
+                'wav'
+            )
+            metadata['Recordings'].append(newfile)
+            fsresult = fscon.api(
+                'uuid_record',
+                '{} start {}'.format(
+                    agentUUID,
+                    newfile
+                )
+            ).getBody().strip()
+            logwrite.debug(
+                "{}: Result for 'uuid_record {} start {}': {}".format(
+                    threading.current_thread().ident,
+                    agentUUID,
+                    newfile,
+                    fsresult
+                )
+            )
+            fscon.disconnect()
+            if fsresult == 'ERR': #TODO FIXME get the appropriate return value for failure to stop recording
+                logwrite.info(
+                    "{}: Unable to start recording for agent ID {}: {}".format(
+                        threading.current_thread().ident,
+                        agentID,
+                        fsresult
+                    )
+                )
+                
+                return [
+                    False,
+                    'NOT RECORDING'
+                ]
+            setresult = setcallmetadata(
+                agentID,
+                metadata
+            )
+            if not setresult:
+                logwrite.warning(
+                    "{}: Unable to store recording metadata for agent ID {}".format(
+                        threading.current_thread().ident,
+                        agentID,
+                    )
+                )
+                return [
+                    False,
+                    'INTERNAL ERROR'
+                ]
+            return [
+                True,
+                'OK'
+            ]
+
     
     def StopRecording(self, agentID):
         """ Stops the recording in FreeSWITCH
@@ -580,408 +885,79 @@ class listenerService(SocketServer.BaseRequestHandler):
             self: This class
             agentID: (string) The agentID to check against
         """
-        fscon = ESL.ESLconnection(
-            config.get(
-                'FreeSWITCH',
-                'FSHOST'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPORT'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPASSWORD'
-                )
-            )
-        if fscon.connected():
-            calls = fscon.api(
-                "show",
-                "channels as json"
-                )
-            CurrentCalls = json.loads(
-                calls.getBody()
-                )
-            j = 0
-            try:
-                for row in CurrentCalls['rows']:
-                    logwrite.debug(
-                        "{}: Checking UUID {} for agent ID {}...".format(
-                            threading.current_thread().ident,
-                            row['call_uuid'],
-                            agentID
-                            )
-                        )
-                    varstring = "{} agent_id".format(
-                        row['call_uuid']
-                    )
-                    fsreturn = fscon.api(
-                        "uuid_getvar",
-                        varstring
-                        )
-                    retAgentID = fsreturn.getBody().strip()
-                    if str(retAgentID) == str(agentID):
-                        logwrite.warn(
-                            "{}: Call for agent ID {} found, killing UUID {}...".format(
-                                threading.current_thread().ident,
-                                agentID,
-                                row['call_uuid']
-                                )
-                            )
-                        fscon.api(
-                            "uuid_kill",
-                            "{}".format(
-                                row['call_uuid']
-                                )
-                            )
-                        j += 1
-                        time.sleep(.33)
-            except (Exception) as e:
-                if "{}".format(e) == "'rows'":
-                    logwrite.debug(
-                        "{}: No active recordings found for agent ID: {}".format(
-                            threading.current_thread().ident,
-                            agentID
-                            )
-                        )
-                else:
-                    logwrite.error(
-                        "{}: Unhandled Exception encountered: {}".format(
-                            threading.current_thread().ident,
-                            e
-                            )
-                        )
-                fscon.disconnect()
-                return [False, "NOT RECORDING"]
-            fscon.disconnect()
-            if j == 0:
-                return [False, "NOT RECORDING"]
-            else:
-                return [True, "OK"]
-        else:
-            logwrite.error(
-                "{}: Unable to connect to FreeSWITCH to stop call, responding with ERROR".format(
-                    threading.current_thread().ident
-                    )
-                )
-            if config.get('Notification', 'NOTIFICATION') == 'true':
-                emailSubject = "Logger stop failure for agent ID: {}".format(
-                    agentID
-                    )
-                emailMessage = "Unable to connect to FreeSWITCH to stop recording for agent: {}".format(
-                    agentID
-                    )
-                logwrite.debug(
-                    "{}: Sending alert email".format(
-                        threading.current_thread().ident
-                        )
-                    )
-                self.sendEmail(
-                    emailSubject,
-                    emailMessage
-                    )
+        validagent, agentUUID = checkvalidagent(
+            agentID
+        )
+        if not validagent:
             return [
                 False,
-                "INTERNAL ERROR"
-                ]
-    
-    def checkDuplicateCalls(self, agentID):
-        """ Checks for multiple recordings per agentID in FreeSWITCH
-        
-        Gets a list of active recordings from FreeSWITCH and iterates
-        through them, checking each agent_id variable for each call to see if
-        that call matches. If there's a match, stop the recordings
-        and return True. If no match, return True. If no active recordings,
-        return False. If there's a problem, return "ERROR"
-        
-        Args:
-            self: This class
-            agentID: (string) The agentID to check against
-        """
-        # Connect to FreeSWITCH
-        fscon = ESL.ESLconnection(
-            config.get(
-                'FreeSWITCH',
-                'FSHOST'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPORT'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPASSWORD'
+                'NOT RECORDING'
+            ]
+
+        # If we've gotten past the basics we can see if there's actually recording info in FreeSWITCH
+        reccheck, metadata = getcallmetadata(
+            agentID
+        )
+        if not reccheck:
+            logwrite.debug(
+                "{}: No active recordings found for agent ID: {}".format(
+                    threading.current_thread().ident,
+                    agentID
                 )
             )
-        if fscon.connected():
-            # Let's check to see if we're already recording for this agent ID.
-            # If we are, kill the call.
-            calls = fscon.api(
-                "show",
-                "channels as json"
-                )
-            CurrentCalls = json.loads(
-                calls.getBody()
-                )
-            try:
-                for row in CurrentCalls['rows']:
-                    logwrite.debug(
-                        "{}: Checking UUID {} for agent ID {}...".format(
-                            threading.current_thread().ident,
-                            row['call_uuid'],
-                            agentID
-                            )
-                        )
-                    varstring = "{} agent_id".format(row['call_uuid'])
-                    fsreturn = fscon.api(
-                        "uuid_getvar",
-                        varstring
-                        )
-                    retAgentID = fsreturn.getBody().strip()
-                    if str(retAgentID) == str(agentID):
-                        logwrite.warn(
-                            "{}: Duplicate call for agent ID {} found: {}...".format(
-                                threading.current_thread().ident,
-                                agentID,
-                                row['call_uuid']
-                                )
-                            )
-                        filevarstring = "{} recording_file".format(
-                            row['call_uuid']
-                            )
-                        fsreturn = fscon.api(
-                            "uuid_getvar",
-                            filevarstring
-                            )
-                        retFile = fsreturn.getBody().strip()
-                        filenamestr = retFile.rsplit('/')[-1]
-                        fscon.disconnect()
-                        return [
-                            True,
-                            filenamestr
-                            ]
-                return [
-                    False,
-                    False
-                ]
-            except (Exception) as e:
-                if "{}".format(e) == "'rows'":
-                    logwrite.debug(
-                        "{}: No active recordings found for agent ID: {}".format(
-                            threading.current_thread().ident,
-                            agentID
-                            )
-                        )
-                else:
-                    logwrite.exception(
-                        "{}: Unhandled Exception encountered:".format(
-                            threading.current_thread().ident
-                            )
-                        )
-                fscon.disconnect()
-                return [
-                    False,
-                    False
-                    ]
-        else:
-            logwrite.error(
-                "{}: Unable to connect to FreeSWITCH to check duplicate calls, responding with ERROR".format(
-                    threading.current_thread().ident
-                    )
-                )
-            if config.get('Notification', 'NOTIFICATION') == 'true':
-                emailSubject = "Logger duplicate call check failure for agent ID: {}".format(
-                    agentID
-                    )
-                emailMessage = "Unable to connect to FreeSWITCH to check for duplicate recordings for agent: {}".format(
-                    agentID
-                    )
-                logwrite.debug(
-                    "{}: Sending alert email".format(
-                        threading.current_thread().ident
-                        )
-                    )
-                self.sendEmail(
-                    emailSubject,
-                    emailMessage
-                    )
             return [
                 False,
-                False
-                ]
-            
-    def killDuplicateCalls(self, agentID):
-        """ Checks for multiple recordings per agentID in FreeSWITCH
+                "NOT RECORDING"
+            ]
         
-        Gets a list of active recordings from FreeSWITCH and iterates
-        through them, checking each agent_id variable for each call to see if
-        that call matches. If there's a match, return [True, recfilename].
-        If no match, return True. If no active recordings,
-        return False. If there's a problem, return "ERROR"
-        
-        Args:
-            self: This class
-            agentID: (string) The agentID to check against
-        """
-        # Connect to FreeSWITCH
-        fscon = ESL.ESLconnection(
-            config.get(
-                'FreeSWITCH',
-                'FSHOST'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPORT'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPASSWORD'
+        # All tests passed, now let's get all the metadata, stop recordings, and clear the recording metadata
+        fscon = fsconnection()
+        if not fscon.connected():
+            logwrite.warning(
+                "{}: Unable to connect to FreeSWITCH to stop recordings for agent ID: {}".format(
+                    threading.current_thread().ident,
+                    agentID
                 )
             )
-        if fscon.connected():
-            # Let's check to see if we're already recording for this agent ID.
-            # If we are, kill the call.
-            calls = fscon.api(
-                "show",
-                "channels as json"
-                )
-            CurrentCalls = json.loads(
-                calls.getBody()
-                )
-            try:
-                for row in CurrentCalls['rows']:
-                    logwrite.debug(
-                        "{}: Checking UUID {} for agent ID {}...".format(
-                            threading.current_thread().ident,
-                            row['call_uuid'],
-                            agentID
-                            )
-                        )
-                    varstring = "{} agent_id".format(
-                        row['call_uuid']
-                        )
-                    fsreturn = fscon.api(
-                        "uuid_getvar",
-                        varstring
-                        )
-                    retAgentID = fsreturn.getBody().strip()
-                    if str(retAgentID) == str(agentID):
-                        logwrite.debug(
-                            "{}: Duplicate call for agent ID {} found, killing UUID {}...".format(
-                                threading.current_thread().ident,
-                                agentID,
-                                row['call_uuid']
-                                )
-                            )
-                        fscon.api(
-                            "uuid_kill", 
-                            "{}".format(
-                                row['call_uuid']
-                                )
-                            )
-                        time.sleep(.33)
-            except (Exception) as e:
-                if "{}".format(e) == "'rows'":
-                    logwrite.debug(
-                        "{}: No calls found...".format(
-                            threading.current_thread().ident
-                            )
-                        )
-                    fscon.disconnect()
-                    return False
-                logwrite.debug(
-                    "{}: Unhandled Exception encountered:, {}...".format(
-                        threading.current_thread().ident,
-                        e
-                        )
-                    )
-                fscon.disconnect()
-                return False
-            fscon.disconnect()
-            return True
-        else:
-            logwrite.error(
-                "{}: Unable to connect to FreeSWITCH to kill call, responding with ERROR".format(
-                    threading.current_thread().ident
-                    )
-                )
-            if config.get('Notification', 'NOTIFICATION') == 'true':
-                emailSubject = "Logger recording kill failure for agent ID: {}".format(
+            return [
+                False,
+                "NOT RECORDING"
+            ]
+        fsresult = fscon.api(
+            'uuid_record',
+            '{} stop all'.format(
+                agentUUID
+            )
+        ).getBody().strip()
+        fscon.disconnect()
+        logwrite.debug(
+            "{}: Result for uuid_record {} stop all: {}".format(
+                threading.current_thread().ident,
+                agentUUID,
+                fsresult
+            )
+        )
+        if fsresult == 'ERR': #TODO FIXME get the appropriate return value for failure to stop recording
+            logwrite.info(
+                "{}: No recordings to stop for agent ID: {}".format(
+                    threading.current_thread().ident,
                     agentID
-                    )
-                emailMessage = "Unable to connect to FreeSWITCH to kill duplicate recording for agent: {}".format(
-                    agentID
-                    )
-                logwrite.debug(
-                    "{}: Sending alert email".format(
-                        threading.current_thread().ident
-                        )
-                    )
-                self.sendEmail(
-                    emailSubject,
-                    emailMessage
-                    )
-            return "ERROR"
-            
-    def checkGateways(self, gatewayName, maxCalls):
-        """ Checks to see if gateway is free to use
-        
-        Gets limit usage and returns True if gateway is available, False if
-        at maximum capacity, or False if cannot connect to FreeSWITCH
-        
-        Args:
-            self: This class
-            gatewayName: Name of the FreeSWITCH gateway to check
-            maxCalls: maximum number of calls allowed on the gateway
-        """
-        # Connect to FreeSWITCH
-        fscon = ESL.ESLconnection(
-            config.get(
-                'FreeSWITCH',
-                'FSHOST'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPORT'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPASSWORD'
                 )
             )
-        if fscon.connected():
-            # Let's check to see if we're already recording for this agent ID.
-            # If we are, kill the call.
-            calls = fscon.api(
-                "limit_usage",
-                "hash logger gw_{}".format(
-                    gatewayName
-                    )
+        metacleared = clearcallmetadata(agentID)
+        if not metacleared:
+            logwrite.warning(
+                "{}: Unable to clear recordings metadata for agent ID: {}".format(
+                    threading.current_thread().ident,
+                    agentID
                 )
-            currentCalls = calls.getBody()
-            fscon.disconnect()
-            if int(currentCalls) < int(maxCalls):
-                logwrite.debug(
-                    "{}: Gateway {} is currently at {} which is under MAXCALLS threshold of {}, using this gateway".format(
-                        threading.current_thread().ident,
-                        gatewayName,
-                        currentCalls,
-                        maxCalls
-                        )
-                    )
-                return True
-            else:
-                logwrite.debug(
-                    "{}: Gateway {} is currently at {} which is over MAXCALLS threshold of {}, skipping this gateway".format(
-                        threading.current_thread().ident,
-                        gatewayName,
-                        currentCalls,
-                        maxCalls
-                        )
-                    )
-                return False
-        else:
-            return False
+            )
+        dropjsonfile(metadata)
+        return [
+            True,
+            "OK"
+            ]
+
     
     def OriginateRecording(self, CallData):
         """ Starts recording call
@@ -992,7 +968,7 @@ class listenerService(SocketServer.BaseRequestHandler):
         
         Args:
             self: This class
-            CallData: (string) The data received from PInnacle that is parsed
+            CallData: (dict) The data received from PInnacle that has been parsed
                 to start the recording
         """
         
@@ -1010,363 +986,122 @@ class listenerService(SocketServer.BaseRequestHandler):
                 )
         if not 'fldCSN' in CallData:
             logwrite.debug(
-                "{}: Phantom resume request received for agent ID {}, attempting to match to current call...".format(
+                "{}: Phantom resume request received for agent ID {}, attempting to resume recording...".format(
                     threading.current_thread().ident,
                     CallData['agentID']
                     )
                 )
-            callCheck = self.checkDuplicateCalls(
-                "{}".format(
+            return self.PauseResumeRecording(
+                CallData['agentID'],
+                'unmask'
+            )
+        # run the stop procedure as a precaution
+        stopresult, stopmsg = self.StopRecording(
+            CallData['agentID']
+        )
+        if stopresult:
+            logwrite.debug(
+                "{}: Recordings existed for agent ID {}, cleaning up PInnacle's mess...".format(
+                    threading.current_thread().ident,
                     CallData['agentID']
-                    )
-                )
-            if callCheck[0] == True:
-                logwrite.debug(
-                    "{}: Current call matched for agent ID {}! resuming recording...".format(
-                        threading.current_thread().ident,
-                        CallData['agentID']
-                        )
-                    )
-                return [
-                    True, 
-                    "OK({})\r\n".format(
-                        callCheck[1]
-                        )
-                    ]
-            else:
-                logwrite.debug(
-                    "{}: Couldn't find current call for agent ID {}, not enough data to make new recording, returning error...".format(
-                        threading.current_thread().ident,
-                        CallData['agentID']
-                        )
-                    )
-                return [
-                    False,
-                    False
-                    ]
-        callsKilled = self.killDuplicateCalls(
-            "{}".format(
-                CallData['agentID']
                 )
             )
-        if "{}".format(callsKilled) == "ERROR":
+        checksuccess, agentUUID = checkvalidagent(
+            CallData['agentID']
+        )
+        if not checksuccess:
+            logwrite.warning(
+                "{}: agent ID {} not logged in, aborting...".format(
+                    threading.current_thread().ident,
+                    CallData['agentID']
+                )
+            )
             return [
                 False,
-                False
-                ]
-        # Now that we've cleaned up, let's start the recording
-        # Check to see if folder for today exists, if not, create ite
-        now = datetime.now()
-        folder = os.path.join(config.get('FreeSWITCH', 'LOGGERDIR'), now.strftime("%Y-%m-%d"))
-        logwrite.debug(
-            "{}: Checking if folder {} exists...".format(
-                threading.current_thread().ident,
-                folder
-                )
-            )
-        if not os.path.isdir(folder):
-            try:
-                logwrite.debug(
-                    "{}: Folder {} does not exist, creating...".format(
-                        threading.current_thread().ident,
-                        folder
-                        )
-                    )
-                os.makedirs(folder)
-                # Change ownership to FreeSWITCH user so FreeSWITCH can write
-                uid = pwd.getpwnam(
-                    config.get(
-                        'FreeSWITCH',
-                        'FSUID'
-                        )
-                    ).pw_uid
-                gid = grp.getgrnam(
-                    config.get(
-                        'FreeSWITCH',
-                        'FSGID'
-                        )
-                    ).gr_gid
-                os.chown(
-                    folder,
-                    uid,
-                    gid
-                    )
-                logwrite.debug(
-                    "{}: Folder {} created!".format(
-                        threading.current_thread().ident,
-                        folder
-                        )
-                    )
-            except(Exception) as e:
-                logwrite.error(
-                    "{}: Unable to create folder {} : {}".format(
-                        threading.current_thread().ident,
-                        folder,
-                        e
-                        )
-                    )
-                returnVar = [
-                    False,
-                    False
-                    ]
-                return returnVar
-        else:
-            uid = pwd.getpwnam(
-                config.get(
-                    'FreeSWITCH',
-                    'FSUID'
-                    )
-                ).pw_uid
-            gid = grp.getgrnam(
-                config.get(
-                    'FreeSWITCH',
-                    'FSGID'
-                    )
-                ).gr_gid
-            os.chown(
-                folder,
-                uid,
-                gid
-                )
-        # Generate a filename
-        recordname = "{}-{}.{}".format(
-            now.strftime("%Y-%m-%d_%H%M%S_%f"),
-            CallData['fldCSN'],
-            config.get(
-                'FreeSWITCH',
-                'FILEEXT'
-                )
-            )
-        filename = os.path.join(
-            folder,
-            recordname
-            )
-        logwrite.debug(
-            "{}: Filename to record: {}".format(
-                threading.current_thread().ident,
-                filename
-                )
-            )
-        # Generate our outbound gateways
-        gatewayFinal = ''
-        gatewayLimit = 0
-        gateways = config.items(
-            'FreeSWITCH-Gateways'
-            )
-        # Randomize gateway list to minimize chance of race condition
-        random.shuffle(
-            gateways
-            )
-        for key, gateway in gateways:
-            gwData = json.loads(
-                gateway
-                )
-            try:
-                gwCheck = self.checkGateways(
-                    gwData[0],
-                    gwData[1]
-                    )
-            except (Exception) as e:
-                logwrite.error(
-                    "{}: Unable to check gateway : {}".format(
-                        threading.current_thread().ident,
-                        e
-                        )
-                    )
-                pass
-            if gwCheck:
-                gatewayFinal = "{}".format(gwData[0])
-                gatewayLimit = int(gwData[1])
-                break
-        if gatewayFinal == '':
-            #If we get here all gateways are at max capactity
-            logwrite.error(
-                "{}: No gateways available to originate! Aborting...".format(
-                    threading.current_thread().ident
-                    )
-                )
-            if config.get('Notification', 'NOTIFICATION') == 'true':
-                emailSubject = "Logger start failure for CSN: {}".format(
-                    CallData['fldCSN']
-                    )
-                emailMessage = "All gateways are at maximum capacity, but unable to start recording for CSN: {}".format(
-                    CallData['fldCSN']
-                    )
-                logwrite.debug(
-                    "{}: Sending alert email".format(
-                        threading.current_thread().ident
-                        )
-                    )
-                self.sendEmail(
-                    emailSubject,
-                    emailMessage
-                    )
-            returnVar = [
-                False,
-                False
-                ]
-            return returnVar
-        origGateway = "sofia/gateway/{}/{}{}".format(
-            gatewayFinal,
-            config.get(
-                'FreeSWITCH',
-                'DIALSTRING'
-                ),
-            CallData['agentID']
-            )
-        # Originate the call
-        origString = "{{gw_name={},max_calls={},agent_id={},agent_login_id={},call_dnis={},call_ani={},call_type={},call_csn={},call_acct={},recording_file={},recording_paused=0,pausearr=ARRAY::START>>0}}{} &lua({})".format(
-            gatewayFinal,
-            gatewayLimit,
-            CallData['agentID'],
-            CallData['fldAgentLoginID'],
-            CallData['fldDNIS'],
-            CallData['fldANI'],
-            CallData['fldCallType'],
-            CallData['fldCSN'],
-            CallData['fldClientID'],
-            filename,
-            origGateway,
-            config.get(
-                'FreeSWITCH',
-                'FSLUA'
-                )
-            )
-        logwrite.debug(
-            "{}: Sending command to freeswitch: originate {}".format(
-                threading.current_thread().ident,
-                origString
-                )
-            )
-        # Connect to FreeSWITCH
-        fscon = ESL.ESLconnection(
-            config.get(
-                'FreeSWITCH',
-                'FSHOST'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPORT'
-                ),
-            config.get(
-                'FreeSWITCH',
-                'FSPASSWORD'
-                )
-            )
-        if fscon.connected():  
-            orig = fscon.api(
-                "originate",
-                origString
-                )
-            OrigResult = orig.getBody().strip()
-            status = OrigResult[:3]
-            if status == "+OK":
-                origUUID =  OrigResult[4:]
-            else:
-                logwrite.error(
-                    "{}: Unable to originate call in FreeSWITCH, received error: {}. responding with ERROR".format(
-                        threading.current_thread().ident,
-                        OrigResult
-                        )
-                    )
-                if config.get('Notification', 'NOTIFICATION') == 'true':
-                    emailSubject = "Logger start failure for CSN: {}".format(
-                        CallData['fldCSN']
-                        )
-                    emailMessage = "Call originated, but unable to start recording for CSN: {}, received the following error: {}.\n\nCall Data:\n\n{}".format(
-                        CallData['fldCSN'],
-                        OrigResult,
-                        origString
-                        )
-                    logwrite.debug(
-                        "{}: Sending alert email".format(
-                            threading.current_thread().ident
-                            )
-                        )
-                    self.sendEmail(
-                        emailSubject,
-                        emailMessage
-                        )
-                returnVar = [
-                    False,
-                    False
-                    ]
-                fscon.disconnect()
-                return returnVar
-            # Sleep for a tiny bit, then check if our call is still active. If not, the recording didn't start, most likely because the caller disconnected...
-            time.sleep(.45)
-            fsreturn = fscon.api(
-                "uuid_buglist",
-                origUUID
-                )
-            UUIDAlive = fsreturn.getBody().strip()
-            if UUIDAlive[:4] == "-ERR":
-                logwrite.error(
-                    "{}: Call originated, but unable to start recording in FreeSWITCH, received the following error: {}. Responding with ERROR".format(
-                        threading.current_thread().ident,
-                        UUIDAlive
-                        )
-                    )
-                if config.get('Notification', 'NOTIFICATION') == 'true':
-                    emailSubject = "Logger start failure for CSN: {}".format(
-                        CallData['fldCSN']
-                        )
-                    emailMessage = "Call originated, but unable to start recording for CSN: {}, received the following error: {}.\n\nCall Data:\n\n{}".format(
-                        CallData['fldCSN'],
-                        UUIDAlive,
-                        origString
-                        )
-                    logwrite.debug(
-                        "{}: Sending alert email".format(
-                            threading.current_thread().ident
-                            )
-                        )
-                    self.sendEmail(
-                        emailSubject,
-                        emailMessage
-                        )
-                returnVar = [
-                    False,
-                    False
-                    ]
-                fscon.disconnect()
-                return returnVar
-        else:
-            logwrite.error(
-                "{}: Unable to connect to FreeSWITCH to originate call, responding with ERROR".format(
-                    threading.current_thread().ident
-                    )
-                )
-            if config.get('Notification', 'NOTIFICATION') == 'true':
-                emailSubject = "Logger start failure for CSN: {}".format(
-                    CallData['fldCSN']
-                    )
-                emailMessage = "Unable to connect to FreeSWITCH to start recording for CSN: {}, received the following error: {}.\n\nCall Data:\n\n{}".format(
-                    CallData['fldCSN'],
-                    UUIDAlive,
-                    origString
-                    )
-                logwrite.debug(
-                    "{}: Sending alert email".format(
-                        threading.current_thread().ident
-                        )
-                    )
-                self.sendEmail(
-                    emailSubject,
-                    emailMessage
-                    )
-            returnVar = [
-                False,
-                False
-                ]
-            return returnVar
-        returnVar = [
-            True,
-            "OK({})".format(
-                recordname
-                )
+                'NOT RECORDING'
             ]
-        return returnVar
+        recording_file = filenamegen(
+            CallData['fldCSN'],
+            'wav'
+        )
+        metadict = {
+            'Station': CallData['agentID'],
+            'ClientID': CallData['fldClientID'],
+            'InboundFlag': CallData['fldCallType'],
+            'DNIS': CallData['fldDNIS'],
+            'ANI': CallData['fldANI'],
+            'CSN': CallData['fldCSN'],
+            'LoggerDate': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'UniqueID': str(uuid.uuid4()),
+            'Paused': 0,
+            'Recordings': [
+                recording_file
+            ]
+        }
+        setresult = setcallmetadata(
+            CallData['agentID'],
+            metadict
+        )
+        if not setresult:
+            logwrite.warning(
+                "{}: Unable to set metadata for agent ID {}! Cannot start recording...".format(
+                    threading.current_thread().ident,
+                    CallData['agentID']
+                )
+            )
+            return [
+                False,
+                'INTERNAL ERROR'
+            ]
+        fscon = fsconnection()
+        if not fscon.connected():
+            logwrite.warning(
+                "{}: Unable to connect to FreeSWITCH to stop recordings for agent ID: {}".format(
+                    threading.current_thread().ident,
+                    CallData['agentID']
+                )
+            )
+            return [
+                False,
+                "NOT RECORDING"
+            ]
+        fsresult = fscon.api(
+            'uuid_record',
+            '{} start {}'.format(
+                agentUUID,
+                recording_file
+            )
+        ).getBody().strip()
+        logwrite.debug(
+            "{}: Result for 'uuid_record {} start {}': {}".format(
+                threading.current_thread().ident,
+                agentUUID,
+                recording_file,
+                fsresult
+            )
+        )
+        fscon.disconnect()
+        if fsresult == 'ERR': #TODO FIXME get the appropriate return value for failure to stop recording
+            logwrite.info(
+                "{}: Unable to start recording for agent ID {}: {}".format(
+                    threading.current_thread().ident,
+                    CallData['agentID'],
+                    fsresult
+                )
+            )
+            
+            return [
+                False,
+                'NOT RECORDING'
+            ]
+        return [
+            True,
+            'OK({})'.format(
+                os.path.split(
+                    recording_file
+                )[1]
+            )
+        ]
 
     def sendEmail(self, subj, mesg):
         """ Sends email
@@ -1605,6 +1340,7 @@ if __name__ == "__main__":
         "Rotating Log"
         )
     # Set the log level
+    logwrite.setLevel ( config.get ( 'Logging', 'LOGLEVEL'))
     if config.get('Logging', 'LOGLEVEL') == 'DEBUG':
         logwrite.setLevel(
             logging.DEBUG

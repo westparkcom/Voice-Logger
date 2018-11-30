@@ -15,59 +15,10 @@ FSHOST = localhost
 FSPORT = 8021
 # Password to connect to FreeSWITCH
 FSPASSWORD = ClueCon
-# Location of lua script for FreeSWITCH to reference
-FSLUA = /etc/freeswitch/scripts/logger.lua
 # FreeSWITCH UID
 FSUID = freeswitch
 # FreeSWITCH GID
 FSGID = freeswitch
-# CDR Files Location
-CDRFILELOC = /var/log/freeswitch/cdr-csv
-# Feature code dial string for monitor feature
-DIALSTRING = #*
-
-[FreeSWITCH-Gateways]
-# Formatted in ["gatewayname", max_calls format]
-# Name of first gateway
-GATEWAY1 = ["equeue-1", 1]
-# Name of second gateway
-GATEWAY2 = ["equeue-2", 1]
-# And so on, you can define as many as you like
-#GATEWAY3 = ["equeue-3", 1]
-#GATEWAY4 = ["equeue-4", 1]
-#GATEWAY5 = ["equeue-5", 1]
-#GATEWAY6 = ["equeue-6", 1]
-#GATEWAY7 = ["equeue-7", 1]
-#GATEWAY8 = ["equeue-8", 1]
-#GATEWAY9 = ["equeue-9", 1]
-#GATEWAY10 = ["equeue-10", 1]
-#GATEWAY11 = ["equeue-11", 1]
-#GATEWAY12 = ["equeue-12", 1]
-#GATEWAY13 = ["equeue-13", 1]
-#GATEWAY14 = ["equeue-14", 1]
-#GATEWAY15 = ["equeue-15", 1]
-#GATEWAY16 = ["equeue-16", 1]
-#GATEWAY17 = ["equeue-17", 1]
-#GATEWAY18 = ["equeue-18", 1]
-#GATEWAY19 = ["equeue-19", 1]
-#GATEWAY20 = ["equeue-20", 1]
-#GATEWAY21 = ["equeue-21", 1]
-#GATEWAY22 = ["equeue-22", 1]
-#GATEWAY23 = ["equeue-23", 1]
-#GATEWAY24 = ["equeue-24", 1]
-#GATEWAY25 = ["equeue-25", 1]
-#GATEWAY26 = ["equeue-26", 1]
-#GATEWAY27 = ["equeue-27", 1]
-#GATEWAY28 = ["equeue-28", 1]
-#GATEWAY29 = ["equeue-29", 1]
-#GATEWAY30 = ["equeue-30", 1]
-#GATEWAY31 = ["equeue-31", 1]
-#GATEWAY32 = ["equeue-32", 1]
-#GATEWAY33 = ["equeue-33", 1]
-#GATEWAY34 = ["equeue-34", 1]
-#GATEWAY35 = ["equeue-35", 1]
-#GATEWAY36 = ["equeue-36", 1]
-#GATEWAY37 = ["equeue-37", 1]
 
 [TelSwitch]
 # Placeholder for when PInnacle doesn't send a DNIS when a call is picked up from park
@@ -86,7 +37,7 @@ ROTATEINTERVAL = 1
 ROTATEBACKUPCOUNT = 30
 
 [CDR-Database]
-# Host of database server
+# Host of database server (mysql)
 LOGGERDBSERVER = localhost
 # Database name
 LOGGERDB = logger
@@ -97,8 +48,14 @@ LOGGERDBUSER = logger
 # Database password
 LOGGERDBPASS = "password"
 
+[ACD-Database]
+ACDDB-SERVER = 127.0.0.1
+ACDDB-DB = acd
+ACDDB-USER = acd
+ACDDB-PASSWORD = MCfdeQkNQE6V9gf4AAOv
+
 [Notification]
-NOTIFICATION = true
+NOTIFICATION = false
 FROMEMAIL = Tech <tech@domain.tld>
 TOEMAIL = Tech <tech@domain.tld>
 SMTPSERVER = localhost
@@ -109,8 +66,6 @@ SMTPUSER = user
 SMTPPASS = pass
 
 [Options]
-# Remove silence from recordings when caller is put on hold or call is paused. NOT SUPPORTED IF FILEEXT = MP3!!!
-REMOVEHOLDSILENCE = true
 # Temp directory location for processing silence removal
 TEMPDIRECTORY = /tmp
 # Insert a beep to mark pause/resume periods
