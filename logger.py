@@ -177,7 +177,7 @@ def getcallmetadata(agentID):
     ]
 
 def clearcallmetadata(agentID):
-    metadata = getcallmetadata(agentID)
+    success, metadata = getcallmetadata(agentID)
     fscon = fsconnection()
     if not fscon.connected():
         return False
