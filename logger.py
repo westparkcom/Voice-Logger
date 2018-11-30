@@ -341,7 +341,10 @@ def checkrecordingpath(dateobj):
             uid,
             gid
         )
-        return True
+        return [
+            True,
+            folder
+        ]
 
 
 def filenamegen(CSN, fileext):
