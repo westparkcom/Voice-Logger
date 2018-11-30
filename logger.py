@@ -26,7 +26,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 import random
 import ESL #pip3 install python-ESL
-import psycopg2 #pip3 install pyscopg2
+import psycopg2 #pip3 install psycopg2
 try:
     import simplejson as json
 except ImportError:
@@ -721,15 +721,13 @@ class listenerService(SocketServer.BaseRequestHandler):
         # Check if outer parenthesis exist
         if not ((CallParameters[0] == '(') or (CallParameters[-1] == ')')):
             return {'BADDATA': True}
+        params = 'agentID={}'.format(
+            CallParameters[1:-2]
         paramsDict = dict(
             param.split(
                 '=',
                 1
-            ) for param in (
-                'agentID={}'.format(
-                    CallParameters[1:-1]
-                )
-            )
+            ) for param in params
         )
         return paramsDict
     
