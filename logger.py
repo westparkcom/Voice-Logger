@@ -723,6 +723,7 @@ class listenerService(SocketServer.BaseRequestHandler):
             return {'BADDATA': True}
         params = 'agentID={}'.format(
             CallParameters[1:-2]
+            ).split(',')
         paramsDict = dict(
             param.split(
                 '=',
