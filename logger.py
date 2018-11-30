@@ -218,7 +218,7 @@ def setcallmetadata(agentID, metadict):
     if os.path.exists(jsonfile):
         outfile = jsonfile
     else:
-        outfile = filenamegen(
+        success, outfile = filenamegen(
             False,
             metadict['CSN'],
             'json'
