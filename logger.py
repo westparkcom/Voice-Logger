@@ -376,8 +376,8 @@ def checkrecordingpath(dateobj):
 
 
 def filenamegen(usedate, CSN, fileext):
+    now = datetime.now()
     if usedate:
-        now = datetime.now()
         pathgood, path = checkrecordingpath(now)
         if not pathgood:
             return [
