@@ -827,7 +827,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 'OK'
             ]
         elif action == 'unmask':
-            newfile = filenamegen(
+            fnamesuccess, newfile = filenamegen(
                 metadata['CSN'],
                 'wav'
             )
@@ -1031,7 +1031,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                 False,
                 'NOT RECORDING'
             ]
-        recording_file = filenamegen(
+        fnamesuccess, recording_file = filenamegen(
             CallData['fldCSN'],
             'wav'
         )
