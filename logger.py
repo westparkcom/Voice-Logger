@@ -163,6 +163,11 @@ def setcallmetadata(agentID, metadict):
             metastring
         )
     ).getBody().strip()
+    logwrite.debug(
+        "Metadata set response: {}".format(
+            result
+        )
+    )
     fscon.disconnect()
     if result == '!err!': #TODO FIXME: ensure !err! is the appropriate error response
         return False
@@ -722,7 +727,7 @@ class listenerService(SocketServer.BaseRequestHandler):
         if not ((CallParameters[0] == '(') or (CallParameters[-1] == ')')):
             return {'BADDATA': True}
         params = 'agentID={}'.format(
-            CallParameters[1:-2]
+            CallParameters[1:-1]
             ).split(',')
         paramsDict = dict(
             param.split(
