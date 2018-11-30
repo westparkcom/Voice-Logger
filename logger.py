@@ -720,7 +720,10 @@ class listenerService(SocketServer.BaseRequestHandler):
         )
         fscon = fsconnection()
         if not fscon.connected():
-            return False
+            return [
+                False,
+                'Unable to connect to FreeSWITCH'
+            ]
         result = fscon.api(
             'db',
             'insert/recordings/{}/{}'.format(
@@ -728,16 +731,17 @@ class listenerService(SocketServer.BaseRequestHandler):
                 metastring
             )
         ).getBody().strip()
-        logwrite.debug(
-            "Metadata set response: {}".format(
-                result
-            )
-        )
         fscon.disconnect()
         if result == '!err!': #TODO FIXME: ensure !err! is the appropriate error response
-            return False
+            return [
+                False,
+                result
+            ]
         else:
-            return True
+            return [
+                True,
+                result
+            ]
 
     def PauseResumeRecording(self, agentID, action):
         """ Pauses or resumes the recording in FreeSWITCH
@@ -857,15 +861,16 @@ class listenerService(SocketServer.BaseRequestHandler):
                     False,
                     'NOT RECORDING'
                 ]
-            setresult = self.setcallmetadata(
+            setresult, seterr = self.setcallmetadata(
                 agentID,
                 metadata
             )
             if not setresult:
                 logwrite.warning(
-                    "{}: Unable to store recording metadata for agent ID {}".format(
+                    "{}: Unable to store recording metadata for agent ID {}: {}".format(
                         threading.current_thread().ident,
                         agentID,
+                        seterr
                     )
                 )
                 return [
@@ -1044,15 +1049,16 @@ class listenerService(SocketServer.BaseRequestHandler):
                 recording_file
             ]
         }
-        setresult = self.setcallmetadata(
+        setresult, seterr = self.setcallmetadata(
             CallData['agentID'],
             metadict
         )
         if not setresult:
             logwrite.warning(
-                "{}: Unable to set metadata for agent ID {}! Cannot start recording...".format(
+                "{}: Unable to set metadata for agent ID {}! Cannot start recording. Error Info: {}".format(
                     threading.current_thread().ident,
-                    CallData['agentID']
+                    CallData['agentID'],
+                    seterr
                 )
             )
             return [
