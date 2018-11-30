@@ -75,7 +75,7 @@ def dbquery(dbname, query):
     """
     try:
         conn = psycopg2.connect(
-            "host={}, dbname={}, user={}, password={}".format(
+            "host={} dbname={} user={} password={}".format(
                 config.get(
                     'ACD-Database',
                     'ACDDB-SERVER'
