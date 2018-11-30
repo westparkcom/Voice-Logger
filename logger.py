@@ -386,10 +386,8 @@ def filenamegen(usedate, CSN, fileext):
             ]
     else:
         path = config.get(
-            config.get(
-                'FreeSWITCH',
-                'LOGGERDIR'
-            )
+            'FreeSWITCH',
+            'LOGGERDIR'
         )
     recordname = "{}-{}.{}".format(
         now.strftime("%Y-%m-%d_%H%M%S_%f"),
