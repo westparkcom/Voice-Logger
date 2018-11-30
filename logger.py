@@ -409,7 +409,7 @@ def dropjsonfile(jsonmeta, filename):
             now - datetime.strptime(
                 jsonmeta['LoggerDate'],
                 "%Y-%m-%d %H:%M:%S"
-            ).total_seconds()
+            ).seconds()
         )
     )
     try:
