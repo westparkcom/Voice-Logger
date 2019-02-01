@@ -35,7 +35,6 @@ import pwd
 import grp
 import smtplib
 import uuid
-import wave
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -51,16 +50,16 @@ def fsconnection():
         config.get(
             'FreeSWITCH',
             'FSHOST'
-            ),
+        ),
         config.get(
             'FreeSWITCH',
             'FSPORT'
-            ),
+        ),
         config.get(
             'FreeSWITCH',
             'FSPASSWORD'
-            )
         )
+    )
     return fsconx
 
 def dbquery(dbname, query):
@@ -164,7 +163,9 @@ def getcallmetadata(agentID):
         ).getBody().strip()
         fscon.disconnect()
         with open(jsonfile) as jfile:
-            metadata=json.load(jfile)
+            metadata=json.load(
+                jfile
+            )
     except (Exception) as e:
         # json loads failed file doesn't exist
         return [
@@ -177,7 +178,9 @@ def getcallmetadata(agentID):
     ]
 
 def clearcallmetadata(agentID):
-    success, metadata = getcallmetadata(agentID)
+    success, metadata = getcallmetadata(
+        agentID
+    )
     fscon = fsconnection()
     if not fscon.connected():
         return False
@@ -569,24 +572,17 @@ class listenerService(SocketServer.BaseRequestHandler):
             originateResult = self.OriginateRecording(
                 callParams
                 )
-            if originateResult[0] == False:
-                respresult = "ERROR(NOT RECORDING)\r\n"
-                logwrite.debug(
-                    "{}: Responding with: {}".format(
-                        threading.current_thread().ident,
-                        respresult
-                        )
-                    )
-                return respresult
-            elif originateResult[0] == True:
+            if originateResult[0]:
                 respresult = "{}\r\n".format(originateResult[1])
-                logwrite.debug(
-                    "{}: Responding with: {}".format(
-                        threading.current_thread().ident,
-                        respresult
-                        )
+            else:
+                respresult = "ERROR(NOT RECORDING)\r\n"
+            logwrite.debug(
+                "{}: Responding with: {}".format(
+                    threading.current_thread().ident,
+                    respresult
                     )
-                return respresult
+                )
+            return respresult
         elif RequestData[0:4] == "STOP":
             callParams = self.Parse(
                 RequestData[4:]
@@ -609,26 +605,19 @@ class listenerService(SocketServer.BaseRequestHandler):
             recstop = self.StopRecording(
                 callParams['agentID']
                 )
-            if recstop[0] == True:
+            if recstop[0]:
                 respresult = "OK\r\n"
-                logwrite.debug(
-                    "{}: Responding with: {}".format(
-                        threading.current_thread().ident,
-                        respresult
-                        )
-                    )
-                return respresult
             else:
                 respresult = "ERROR({})\r\n".format(
                     recstop[1]
                     )
-                logwrite.debug(
-                    "{}: Responding with: {}".format(
-                        threading.current_thread().ident,
-                        respresult
-                        )
+            logwrite.debug(
+                "{}: Responding with: {}".format(
+                    threading.current_thread().ident,
+                    respresult
                     )
-                return respresult
+                )
+            return respresult
         elif RequestData[0:5] == "PAUSE":
             callParams = self.Parse(
                 RequestData[5:]
@@ -652,26 +641,19 @@ class listenerService(SocketServer.BaseRequestHandler):
                 callParams['agentID'],
                 "mask"
                 )
-            if recpaused[0] == True:
+            if recpaused[0]:
                 respresult = "OK\r\n"
-                logwrite.debug(
-                    "{}: Responding with: {}".format(
-                        threading.current_thread().ident,
-                        respresult
-                        )
-                    )
-                return respresult
             else:
                 respresult = "ERROR({})\r\n".format(
                     recpaused[1]
                     )
-                logwrite.debug(
-                    "{}: Responding with: {}".format(
-                        threading.current_thread().ident,
-                        respresult
-                        )
+            logwrite.debug(
+                "{}: Responding with: {}".format(
+                    threading.current_thread().ident,
+                    respresult
                     )
-                return respresult
+                )
+            return respresult
         elif RequestData[0:6] == "RESUME":
             callParams = self.Parse(
                 RequestData[6:]
@@ -695,24 +677,17 @@ class listenerService(SocketServer.BaseRequestHandler):
                 callParams['agentID'],
                 "unmask"
                 )
-            if recresume[0] == True:
+            if recresume[0]:
                 respresult = "OK\r\n"
-                logwrite.debug(
-                    "{}: Responding with: {}".format(
-                        threading.current_thread().ident,
-                        respresult
-                        )
-                    )
-                return respresult
             else:
                 respresult = "ERROR({})\r\n".format(recresume[1])
-                logwrite.debug(
-                    "{}: Responding with: {}".format(
-                        threading.current_thread().ident,
-                        respresult
-                        )
+            logwrite.debug(
+                "{}: Responding with: {}".format(
+                    threading.current_thread().ident,
+                    respresult
                     )
-                return respresult
+                )
+            return respresult
         elif RequestData[0:5] == "HELLO":
             now = datetime.now()
             helloStr = "OK {} Calls: {}\r\n".format(
@@ -1250,7 +1225,10 @@ class ThreadedTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
     def __init__(self, server_address, RequestHandlerClass):
         SocketServer.TCPServer.__init__(
-            self, server_address, RequestHandlerClass)
+            self,
+            server_address,
+            RequestHandlerClass
+        )
         self._shutdown_request = False
 
 def main():
@@ -1259,15 +1237,18 @@ def main():
         logwrite.info(
             "Starting up logger"
             )
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_STREAM
+        )
         logwrite.info(
             "Checking to see if port {} is already in use...".format(
                 config.get(
                     'Network',
                     'TCPPORT'
-                    )
                 )
             )
+        )
         result = sock.connect_ex(
             (
                 '127.0.0.1',
@@ -1275,19 +1256,19 @@ def main():
                     config.get(
                         'Network',
                         'TCPPORT'
-                        )
                     )
                 )
             )
+        )
         if result == 0:
             logwrite.error(
                 "Port {} is currently in use. Please ensure logger application is not already running. Exiting...".format(
                     config.get(
                         'Network',
                         'TCPPORT'
-                        )
                     )
                 )
+            )
             return 2
         else:
             logwrite.info(
@@ -1295,18 +1276,18 @@ def main():
                     config.get(
                         'Network',
                         'TCPPORT'
-                        )
                     )
                 )
+            )
         # Set up threaded TCP server to serve forever, then start the thread
         logwrite.info(
             "Starting listener service on port {}".format(
                 config.get(
                     'Network',
                     'TCPPORT'
-                    )
                 )
             )
+        )
         t = ThreadedTCPServer(
             (
                 '',
@@ -1314,11 +1295,11 @@ def main():
                     config.get(
                         'Network',
                         'TCPPORT'
-                        )
                     )
-                ),
+                )
+            ),
             listenerService
-            )
+        )
         server_thread = threading.Thread(
             target=t.serve_forever()
             )
@@ -1331,16 +1312,16 @@ def main():
         try:
             logwrite.info(
                 "Shutting down all listener threads..."
-                )
+            )
             t.shutdown()
             t.server_close()
             logwrite.info(
                 "Listener threads terminated."
-                )
+            )
         except:
             logwrite.error(
                 "No listener running, skipping thread shutdown."
-                )
+            )
         if result != 0:
             return 1
         else:
@@ -1373,12 +1354,12 @@ if __name__ == "__main__":
     config = ConfigParser.ConfigParser()
     config.read(
         loggerConfigFile
-        )
+    )
 
     # Logging setup
     logwrite = logging.getLogger(
         "Rotating Log"
-        )
+    )
     # Set the log level
     logwrite.setLevel ( config.get ( 'Logging', 'LOGLEVEL'))
     if config.get('Logging', 'LOGLEVEL') == 'DEBUG':
