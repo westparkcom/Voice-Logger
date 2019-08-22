@@ -1214,6 +1214,9 @@ class listenerService(SocketServer.BaseRequestHandler):
                 ),
             CallData['agentID']
             )
+        if not 'fldANI' in CallData:
+            # Sometimes PInnacle doesn't send this...
+            CallData['fldANI'] = "0000"
         # Originate the call
         origString = "{{gw_name={},max_calls={},agent_id={},agent_login_id={},call_dnis={},call_ani={},call_type={},call_csn={},call_acct={},recording_file={},recording_paused=0,pausearr=ARRAY::START>>0}}{} &lua({})".format(
             gatewayFinal,
