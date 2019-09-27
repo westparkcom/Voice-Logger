@@ -33,6 +33,7 @@ except ImportError:
 import pwd
 import grp
 import smtplib
+from itertools import cycle
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -1150,17 +1151,9 @@ class listenerService(SocketServer.BaseRequestHandler):
         # Generate our outbound gateways
         gatewayFinal = ''
         gatewayLimit = 0
-        gateways = config.items(
-            'FreeSWITCH-Gateways'
-            )
-        # Randomize gateway list to minimize chance of race condition
-        random.shuffle(
-            gateways
-            )
-        for key, gateway in gateways:
-            gwData = json.loads(
-                gateway
-                )
+        while True:
+            with gwCycleLock:
+                gwData = next(gwCycle) #Gets the next gateway in the list
             try:
                 gwCheck = self.checkGateways(
                     gwData[0],
@@ -1173,7 +1166,7 @@ class listenerService(SocketServer.BaseRequestHandler):
                         e
                         )
                     )
-                pass
+                break
             if gwCheck:
                 gatewayFinal = "{}".format(gwData[0])
                 gatewayLimit = int(gwData[1])
@@ -1602,7 +1595,19 @@ if __name__ == "__main__":
     config.read(
         loggerConfigFile
         )
-
+    # Set up rotating gateway list
+    gateways = config.items(
+            'FreeSWITCH-Gateways'
+            )
+    gwDataRaw = []
+    for key, gateway in gateways:
+        gwDataRaw.append(
+            json.loads(
+                gateway
+            )
+        )
+    gwCycleLock = threading.Lock()
+    gwCycle = cycle(gwDataRaw)
     # Logging setup
     logwrite = logging.getLogger(
         "Rotating Log"
