@@ -860,7 +860,7 @@ def main():
         )
     badsql = False
     badsqlfile = os.path.join(
-        "filepath",
+        filepath,
         "BadSQL.csv.{}".format(
             uuid.uuid4()
             )
